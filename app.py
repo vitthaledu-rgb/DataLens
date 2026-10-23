@@ -76,6 +76,7 @@ def init_state():
         "last_evaluation": {},
         "tuned_model": None,
         "tuned_info": {},
+        "feature_importance": pd.DataFrame(),
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -88,6 +89,7 @@ def clear_model_state():
     for k in ["trained_pipeline", "trained_model_name", "target_column", "task_type", "X_train", "X_test", "y_train", "y_test", "predictions", "feature_names", "prediction_result", "last_evaluation", "tuned_model", "tuned_info"]:
         st.session_state[k] = None if k not in ["feature_names"] else []
     st.session_state.model_results = pd.DataFrame()
+    st.session_state.feature_importance = pd.DataFrame()
 
 
 def fmt_num(x):
@@ -455,7 +457,7 @@ with tabs[6]:
 
 # Features
 with tabs[7]:
-    st.markdown("Feature engineering operates on a copy and never changes the original dataset.")
+    st.markdown("Feature engineering operates on a copy and never changes the original dataset until you explicitly apply it.")
     feature_cols=st.multiselect("Columns",list(df.columns),default=list(df.select_dtypes(include=np.number).columns[:3]))
     feat_op=st.selectbox("Feature operation",["Log","Square","Square root","Standardization","MinMax scaling","Robust scaling","Frequency encoding","Variance filtering","Correlation filtering","SelectKBest","PCA","One-hot encoding","Ordinal encoding"])
     if st.button("Preview Feature Engineering"):
@@ -483,10 +485,19 @@ with tabs[7]:
                 from sklearn.decomposition import PCA
                 x=tmp[feature_cols].apply(pd.to_numeric,errors="coerce").fillna(tmp[feature_cols].median(numeric_only=True)); n=min(5,x.shape[1]); pcs=PCA(n_components=n).fit_transform(StandardScaler().fit_transform(x)); tmp=pd.DataFrame(pcs,index=tmp.index,columns=[f"PC{i+1}" for i in range(n)])
             st.dataframe(tmp.head(100),use_container_width=True)
-            st.session_state.feature_preview=tmp
-            if st.button("Apply Feature Engineering"):
-                st.session_state.processed_df=tmp.copy(); clear_model_state(); st.success("Feature engineering applied."); st.rerun()
+            st.session_state.feature_preview=tmp.copy()
+            st.success("Preview created. No dataset changes have been made.")
         except Exception as e: st.error(f"Feature engineering failed: {e}")
+
+    if st.session_state.get("feature_preview") is not None and st.button("Apply Feature Engineering", type="primary"):
+        try:
+            st.session_state.processed_df=st.session_state.feature_preview.copy()
+            st.session_state.cleaning_history.append({"Step":len(st.session_state.cleaning_history)+1,"Operation":f"Feature engineering: {feat_op}","Column":", ".join(feature_cols) if feature_cols else "All selected","Before":"Preview","After":f"{st.session_state.processed_df.shape[0]} rows x {st.session_state.processed_df.shape[1]} columns","Status":"Applied"})
+            st.session_state.feature_preview=None
+            clear_model_state()
+            st.success("Feature engineering applied to the processed dataset.")
+            st.rerun()
+        except Exception as e: st.error(f"Could not apply feature engineering: {e}")
 
 # Training
 with tabs[8]:
@@ -605,7 +616,7 @@ with tabs[13]:
 # Export
 with tabs[14]:
     st.markdown("### Export Center")
-    export_items={"Original Dataset":st.session_state.original_df,"Processed Dataset":st.session_state.processed_df,"Currently Viewed Dataset":st.session_state.viewed_df,"Statistics":stats_table(df,list(df.select_dtypes(include=np.number).columns),[25,50,75,90,95]),"Missing Value Report":df.isna().sum().rename("Missing").reset_index().rename(columns={"index":"Column"}),"Duplicate Report":pd.DataFrame({"Duplicate Rows":[int(df.duplicated().sum())]}),"Data Quality Report":quality_report(df)[0],"Model Metrics":pd.DataFrame([st.session_state.last_evaluation]) if st.session_state.last_evaluation else pd.DataFrame(),"Model Comparison":st.session_state.model_results,"Prediction Result":pd.DataFrame([st.session_state.prediction_result]) if st.session_state.prediction_result else pd.DataFrame(),"Feature Importance":st.session_state.get("feature_importance",pd.DataFrame()),"Cleaning Change Log":pd.DataFrame(st.session_state.cleaning_history)}
+    export_items={"Original Dataset":st.session_state.original_df,"Processed Dataset":st.session_state.processed_df,"Currently Viewed Dataset":st.session_state.viewed_df,"Statistics":stats_table(df,list(df.select_dtypes(include=np.number).columns),[25,50,75,90,95]),"Missing Value Report":df.isna().sum().rename("Missing").reset_index().rename(columns={"index":"Column"}),"Duplicate Report":pd.DataFrame({"Duplicate Rows":[int(df.duplicated().sum())]}),"Data Quality Report":quality_report(df)[0],"Model Metrics":pd.DataFrame([st.session_state.last_evaluation]) if st.session_state.last_evaluation else pd.DataFrame(),"Model Comparison":st.session_state.model_results,"Prediction Result":pd.DataFrame([st.session_state.prediction_result]) if st.session_state.prediction_result else pd.DataFrame(),"Feature Importance":st.session_state.get("feature_importance",pd.DataFrame()),"Cleaning Change Log":pd.DataFrame(st.session_state.cleaning_history),"Complete Analysis Summary":pd.DataFrame([{"Section":"Dataset","Rows":len(df),"Columns":df.shape[1]},{"Section":"Quality","Rows":quality_report(df)[1],"Columns":"Score/100"},{"Section":"Model","Rows":1 if st.session_state.trained_pipeline else 0,"Columns":st.session_state.trained_model_name or ""}])}
     choice=st.selectbox("Artifact",list(export_items.keys()))
     fmt=st.radio("Format",["CSV","Excel"],horizontal=True)
     data=export_items[choice]
