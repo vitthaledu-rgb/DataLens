@@ -1,3088 +1,8953 @@
-# app.py
-# AI and ML Analytics Dashboard
-# Streamlit version
-# No Gradio
-# No notebook/Colab commands
-# Professional dashboard with EDA, cleaning, outliers, features, target analysis,
-# machine learning, dataset viewing, reset, and CSV/XLSX downloads.
+# ============================================================
+# AI & ML ANALYTICS STUDIO
+# COMPLETE SINGLE-CELL GOOGLE COLAB APPLICATION
+# ============================================================
 
-import io
+!pip -q install "gradio==5.50.0" pandas numpy matplotlib seaborn scipy scikit-learn openpyxl xlrd
+
+import os
+import re
+import tempfile
 import warnings
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import streamlit as st
 import matplotlib.pyplot as plt
 import seaborn as sns
+from scipy import stats
+
+import gradio as gr
+
+from sklearn.model_selection import (
+    train_test_split,
+    cross_val_score,
+    KFold,
+    StratifiedKFold,
+    GridSearchCV,
+    RandomizedSearchCV
+)
 
 from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler, LabelEncoder
-from sklearn.model_selection import train_test_split
+from sklearn.impute import SimpleImputer
+
+from sklearn.preprocessing import (
+    StandardScaler,
+    MinMaxScaler,
+    RobustScaler,
+    OneHotEncoder,
+    OrdinalEncoder,
+    PolynomialFeatures
+)
+
+from sklearn.feature_selection import SelectKBest, f_classif, f_regression
+from sklearn.decomposition import PCA
+
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
     recall_score,
     f1_score,
+    roc_auc_score,
     confusion_matrix,
+    roc_curve,
+    precision_recall_curve,
     mean_absolute_error,
     mean_squared_error,
-    r2_score,
+    r2_score
 )
+
+from sklearn.inspection import permutation_importance
+
+from sklearn.linear_model import (
+    LogisticRegression,
+    LinearRegression,
+    Ridge,
+    Lasso
+)
+
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
+
+from sklearn.tree import (
+    DecisionTreeClassifier,
+    DecisionTreeRegressor
+)
+
 from sklearn.ensemble import (
     RandomForestClassifier,
     RandomForestRegressor,
     GradientBoostingClassifier,
-    GradientBoostingRegressor,
+    GradientBoostingRegressor
 )
-from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge
+
+from sklearn.svm import SVC, SVR
+
 
 warnings.filterwarnings("ignore")
-
-# ---------------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------------
-
-st.set_page_config(
-    page_title="AI and ML Analytics Dashboard",
-    page_icon=None,
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# ---------------------------------------------------------
-# PROFESSIONAL CSS
-# ---------------------------------------------------------
-
-st.markdown(
-    """
-    <style>
-
-    * {
-        font-family: "Times New Roman", Times, serif !important;
-    }
-
-    html, body, [class*="css"] {
-        font-family: "Times New Roman", Times, serif !important;
-    }
-
-    .stApp {
-        background: #f4f7fb;
-    }
-
-    .main .block-container {
-        max-width: 1500px;
-        padding-top: 1.2rem;
-        padding-bottom: 3rem;
-    }
-
-    h1, h2, h3, h4, h5, h6 {
-        font-family: "Times New Roman", Times, serif !important;
-        color: #183153 !important;
-    }
-
-    p, div, span, label {
-        font-family: "Times New Roman", Times, serif !important;
-    }
-
-    .dashboard-header {
-        background: linear-gradient(
-            135deg,
-            #17365d 0%,
-            #24527a 55%,
-            #2f75a8 100%
-        );
-        padding: 28px 32px;
-        border-radius: 16px;
-        margin-bottom: 22px;
-        color: white;
-        box-shadow: 0 8px 25px rgba(23, 54, 93, 0.18);
-    }
-
-    .dashboard-header h1 {
-        color: white !important;
-        margin: 0;
-        font-size: 34px;
-    }
-
-    .dashboard-header p {
-        color: #eaf4ff !important;
-        margin: 8px 0 0 0;
-        font-size: 16px;
-    }
-
-    .section-title {
-        background: #eaf2f8;
-        border-left: 5px solid #2f75a8;
-        padding: 10px 15px;
-        border-radius: 6px;
-        margin: 15px 0;
-        color: #183153;
-        font-size: 22px;
-        font-weight: bold;
-    }
-
-    .info-box {
-        background: #eaf4ff;
-        border: 1px solid #c6dff5;
-        border-radius: 9px;
-        padding: 12px 15px;
-        margin-bottom: 12px;
-        color: #183153;
-    }
-
-    .success-box {
-        background: #eaf7ef;
-        border: 1px solid #b7dfc5;
-        border-radius: 9px;
-        padding: 12px 15px;
-        color: #1e5631;
-    }
-
-    .warning-box {
-        background: #fff7e6;
-        border: 1px solid #efd49a;
-        border-radius: 9px;
-        padding: 12px 15px;
-        color: #795600;
-    }
-
-    .metric-card {
-        background: white;
-        border: 1px solid #d9e2ec;
-        border-radius: 12px;
-        padding: 18px;
-        text-align: center;
-        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.04);
-    }
-
-    .metric-title {
-        color: #66788a;
-        font-size: 14px;
-    }
-
-    .metric-value {
-        color: #17365d;
-        font-size: 26px;
-        font-weight: bold;
-        margin-top: 5px;
-    }
-
-    .stButton > button {
-        background: #24527a;
-        color: white;
-        border: none;
-        border-radius: 7px;
-        padding: 9px 18px;
-        font-weight: bold;
-    }
-
-    .stButton > button:hover {
-        background: #17365d;
-        color: white;
-    }
-
-    .stDownloadButton > button {
-        background: #2e7d5b;
-        color: white;
-        border: none;
-        border-radius: 7px;
-        font-weight: bold;
-    }
-
-    .stDownloadButton > button:hover {
-        background: #256b4d;
-        color: white;
-    }
-
-    div[data-testid="stFileUploader"] {
-        background: white;
-        border: 1px solid #d9e2ec;
-        border-radius: 12px;
-        padding: 10px;
-    }
-
-    div[data-testid="stDataFrame"] {
-        border: 1px solid #d9e2ec;
-        border-radius: 8px;
-    }
-
-    .footer {
-        text-align: center;
-        color: #718096;
-        font-size: 13px;
-        padding-top: 25px;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# ---------------------------------------------------------
-# SESSION STATE
-# ---------------------------------------------------------
-
-if "original_df" not in st.session_state:
-    st.session_state.original_df = None
-
-if "working_df" not in st.session_state:
-    st.session_state.working_df = None
-
-if "filename" not in st.session_state:
-    st.session_state.filename = ""
-
-if "cleaning_log" not in st.session_state:
-    st.session_state.cleaning_log = []
-
-if "model_result" not in st.session_state:
-    st.session_state.model_result = None
+sns.set_theme(style="whitegrid")
 
 
-# ---------------------------------------------------------
-# HELPER FUNCTIONS
-# ---------------------------------------------------------
+# ============================================================
+# OPTIONAL LIBRARIES
+# ============================================================
 
-def reset_dataset():
-    if st.session_state.original_df is not None:
-        st.session_state.working_df = st.session_state.original_df.copy(deep=True)
-        st.session_state.cleaning_log = []
-        st.session_state.model_result = None
-        return True
-    return False
+try:
+    from xgboost import XGBClassifier, XGBRegressor
+    XGB_AVAILABLE = True
+except Exception:
+    XGB_AVAILABLE = False
 
 
-def load_dataset(uploaded_file):
-    try:
-        extension = uploaded_file.name.lower().split(".")[-1]
-
-        if extension == "csv":
-            df = pd.read_csv(uploaded_file)
-        elif extension == "xlsx":
-            df = pd.read_excel(uploaded_file, engine="openpyxl")
-        elif extension == "xls":
-            df = pd.read_excel(uploaded_file, engine="xlrd")
-        else:
-            return None, "Unsupported file format."
-
-        if df.empty:
-            return None, "The uploaded dataset is empty."
-
-        df.columns = make_unique_columns(df.columns)
-
-        return df, None
-
-    except Exception as exc:
-        return None, f"Could not read the file: {str(exc)}"
+try:
+    import shap
+    SHAP_AVAILABLE = True
+except Exception:
+    SHAP_AVAILABLE = False
 
 
-def make_unique_columns(columns):
-    result = []
-    counts = {}
+# ============================================================
+# APPLICATION STATE
+# ============================================================
 
-    for col in columns:
-        col = str(col).strip()
+APP = {
+    "original_df": None,
+    "processed_df": None,
+    "viewed_df": None,
+    "filename": "",
 
-        if col == "":
-            col = "Unnamed"
+    "cleaning_history": [],
 
-        if col not in counts:
-            counts[col] = 0
-            result.append(col)
-        else:
-            counts[col] += 1
-            result.append(f"{col}_{counts[col]}")
+    "trained_pipeline": None,
+    "trained_model": None,
+    "preprocessor": None,
 
-    return result
+    "feature_names": [],
+    "raw_feature_names": [],
+
+    "target_column": None,
+    "task_type": None,
+
+    "X_train": None,
+    "X_test": None,
+    "y_train": None,
+    "y_test": None,
+
+    "predictions": None,
+    "probabilities": None,
+
+    "model_results": pd.DataFrame(),
+    "evaluation_metrics": pd.DataFrame(),
+    "feature_importance": pd.DataFrame(),
+    "prediction_df": pd.DataFrame(),
+
+    "viewed_description": "",
+
+    "last_graph": None,
+    "last_statistics": pd.DataFrame(),
+    "last_quality": pd.DataFrame(),
+    "last_missing": pd.DataFrame(),
+    "last_outliers": pd.DataFrame(),
+    "last_duplicate": pd.DataFrame(),
+    "last_tuning": pd.DataFrame(),
+    "last_target": pd.DataFrame(),
+    "last_feature_result": pd.DataFrame(),
+}
 
 
-def numeric_columns(df):
+# ============================================================
+# BASIC HELPERS
+# ============================================================
+
+def clear_state():
+    for key in list(APP.keys()):
+
+        if key in [
+            "model_results",
+            "evaluation_metrics",
+            "feature_importance",
+            "prediction_df",
+            "last_statistics",
+            "last_quality",
+            "last_missing",
+            "last_outliers",
+            "last_duplicate",
+            "last_tuning",
+            "last_target",
+            "last_feature_result"
+        ]:
+            APP[key] = pd.DataFrame()
+
+        elif key == "cleaning_history":
+            APP[key] = []
+
+        elif key in [
+            "original_df",
+            "processed_df",
+            "viewed_df",
+            "trained_pipeline",
+            "trained_model",
+            "preprocessor",
+            "X_train",
+            "X_test",
+            "y_train",
+            "y_test",
+            "predictions",
+            "probabilities"
+        ]:
+            APP[key] = None
+
+        elif key in [
+            "filename",
+            "target_column",
+            "task_type",
+            "viewed_description"
+        ]:
+            APP[key] = ""
+
+        elif key in [
+            "feature_names",
+            "raw_feature_names"
+        ]:
+            APP[key] = []
+
+        elif key == "last_graph":
+            APP[key] = None
+
+
+def safe_df(df):
+    if isinstance(df, pd.DataFrame):
+        return df.copy()
+    return pd.DataFrame()
+
+
+def numeric_cols(df):
+    if df is None:
+        return []
     return df.select_dtypes(include=np.number).columns.tolist()
 
 
-def categorical_columns(df):
-    return df.select_dtypes(
-        include=["object", "category", "bool"]
-    ).columns.tolist()
+def categorical_cols(df):
+    if df is None:
+        return []
+    return df.select_dtypes(exclude=np.number).columns.tolist()
 
 
-def datetime_columns(df):
-    return df.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
+def total_missing(df):
+    if df is None or df.empty:
+        return 0
+    return int(df.isna().sum().sum())
 
 
-def safe_numeric_conversion(df, columns):
-    result = df.copy()
-
-    for col in columns:
-        result[col] = pd.to_numeric(result[col], errors="coerce")
-
-    return result
+def duplicate_count(df):
+    if df is None or df.empty:
+        return 0
+    return int(df.duplicated().sum())
 
 
-def dataset_summary(df):
-    return pd.DataFrame(
-        {
-            "Metric": [
-                "Rows",
-                "Columns",
-                "Numeric Columns",
-                "Categorical Columns",
-                "Date/Time Columns",
-                "Missing Cells",
-                "Duplicate Rows",
-                "Memory Usage (MB)",
-            ],
-            "Value": [
-                len(df),
-                len(df.columns),
-                len(numeric_columns(df)),
-                len(categorical_columns(df)),
-                len(datetime_columns(df)),
-                int(df.isna().sum().sum()),
-                int(df.duplicated().sum()),
-                round(df.memory_usage(deep=True).sum() / 1024**2, 2),
-            ],
-        }
+def count_mixed_type_columns(df):
+    if df is None or df.empty:
+        return 0
+
+    count = 0
+
+    for column in df.columns:
+        series = df[column].dropna()
+
+        if series.empty:
+            continue
+
+        type_count = series.map(
+            lambda x: type(x).__name__
+        ).nunique()
+
+        if type_count > 1:
+            count += 1
+
+    return count
+
+
+def count_invalid_values(df):
+    if df is None or df.empty:
+        return 0
+
+    invalid = 0
+
+    numeric = df.select_dtypes(include=np.number)
+
+    if not numeric.empty:
+        invalid += int(
+            np.isinf(numeric).sum().sum()
+        )
+
+    for column in df.columns:
+
+        name = str(column).lower()
+
+        series = df[column]
+
+        numeric_series = pd.to_numeric(
+            series,
+            errors="coerce"
+        )
+
+        if "age" in name:
+
+            invalid += int(
+                ((numeric_series < 0) |
+                 (numeric_series > 120)).sum()
+            )
+
+        elif (
+            "blood pressure" in name
+            or "blood_pressure" in name
+        ):
+
+            invalid += int(
+                (numeric_series <= 0).sum()
+            )
+
+        elif (
+            "heart rate" in name
+            or "heartrate" in name
+            or "pulse" in name
+        ):
+
+            invalid += int(
+                (numeric_series <= 0).sum()
+            )
+
+        elif "cholesterol" in name:
+
+            invalid += int(
+                (numeric_series < 0).sum()
+            )
+
+        elif "bmi" in name:
+
+            invalid += int(
+                (
+                    (numeric_series <= 0)
+                    |
+                    (numeric_series > 100)
+                ).sum()
+            )
+
+    return invalid
+
+
+def outlier_count_total(df):
+
+    if df is None or df.empty:
+        return 0
+
+    total = 0
+
+    for column in numeric_cols(df):
+
+        series = pd.to_numeric(
+            df[column],
+            errors="coerce"
+        ).dropna()
+
+        if len(series) < 4:
+            continue
+
+        q1 = series.quantile(0.25)
+        q3 = series.quantile(0.75)
+
+        iqr = q3 - q1
+
+        if iqr == 0:
+            continue
+
+        lower = q1 - 1.5 * iqr
+        upper = q3 + 1.5 * iqr
+
+        total += int(
+            (
+                (series < lower)
+                |
+                (series > upper)
+            ).sum()
+        )
+
+    return total
+
+
+def quality_score(df):
+
+    if df is None or df.empty:
+        return 0
+
+    rows, columns = df.shape
+
+    completeness = max(
+        0,
+        100 -
+        (
+            total_missing(df)
+            /
+            max(1, rows * columns)
+        ) * 100
+    )
+
+    uniqueness = max(
+        0,
+        100 -
+        (
+            duplicate_count(df)
+            /
+            max(1, rows)
+        ) * 100
+    )
+
+    invalid = count_invalid_values(df)
+
+    validity = max(
+        0,
+        100 -
+        (
+            invalid
+            /
+            max(1, rows * columns)
+        ) * 100
+    )
+
+    consistency = max(
+        0,
+        100 -
+        (
+            count_mixed_type_columns(df)
+            /
+            max(1, columns)
+        ) * 100
+    )
+
+    return int(
+        round(
+            (
+                completeness
+                + uniqueness
+                + validity
+                + consistency
+            ) / 4
+        )
     )
 
 
-def column_information(df):
+def fmt_num(value):
+
+    try:
+
+        if pd.isna(value):
+            return "NA"
+
+        return (
+            f"{float(value):,.4f}"
+            .rstrip("0")
+            .rstrip(".")
+        )
+
+    except Exception:
+
+        return str(value)
+
+
+def file_name_safe(text):
+
+    text = re.sub(
+        r"[^A-Za-z0-9_.-]+",
+        "_",
+        str(text)
+    )
+
+    return text[:80] or "dataset"
+
+
+def ensure_df():
+
+    if (
+        APP["processed_df"] is None
+        or APP["processed_df"].empty
+    ):
+        return None, "Load a dataset first."
+
+    return APP["processed_df"], ""
+
+
+def write_df(df, stem, fmt="CSV"):
+
+    if df is None:
+        return None
+
+    df = safe_df(df)
+
+    timestamp = datetime.now().strftime(
+        "%Y%m%d_%H%M%S_%f"
+    )
+
+    stem = file_name_safe(stem)
+
+    if fmt == "Excel":
+
+        path = os.path.join(
+            tempfile.gettempdir(),
+            f"{stem}_{timestamp}.xlsx"
+        )
+
+        df.to_excel(
+            path,
+            index=False
+        )
+
+    else:
+
+        path = os.path.join(
+            tempfile.gettempdir(),
+            f"{stem}_{timestamp}.csv"
+        )
+
+        df.to_csv(
+            path,
+            index=False
+        )
+
+    if os.path.exists(path):
+        return path
+
+    return None
+
+
+def metric_snapshot(df):
+
+    return {
+        "Rows": int(len(df)),
+        "Columns": int(df.shape[1]),
+        "Missing Values": total_missing(df),
+        "Duplicates": duplicate_count(df),
+        "Numeric Columns": len(numeric_cols(df)),
+        "Categorical Columns": len(categorical_cols(df)),
+        "Outliers": outlier_count_total(df)
+    }
+
+
+def comparison_df(before, after):
+
+    before_metrics = metric_snapshot(before)
+    after_metrics = metric_snapshot(after)
+
     rows = []
 
-    for col in df.columns:
-        rows.append(
-            {
-                "Column": col,
-                "Data Type": str(df[col].dtype),
-                "Non-Null": int(df[col].notna().sum()),
-                "Missing": int(df[col].isna().sum()),
-                "Missing %": round(df[col].isna().mean() * 100, 2),
-                "Unique": int(df[col].nunique(dropna=True)),
-                "Sample Value": (
-                    str(df[col].dropna().iloc[0])
-                    if df[col].notna().any()
-                    else ""
-                ),
-            }
-        )
+    for key in before_metrics:
+
+        rows.append([
+            key,
+            before_metrics[key],
+            after_metrics[key],
+            after_metrics[key] -
+            before_metrics[key]
+        ])
+
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "Metric",
+            "Before",
+            "After",
+            "Change"
+        ]
+    )
+
+
+def summary_html(df):
+
+    if df is None or df.empty:
+
+        return """
+        <div class="notice">
+            No dataset loaded.
+        </div>
+        """
+
+    score = quality_score(df)
+
+    target = (
+        APP.get("target_column")
+        or "Not selected"
+    )
+
+    return f"""
+    <div class="kpi-grid">
+
+        <div class="kpi k1">
+            <span>Rows</span>
+            <b>{len(df):,}</b>
+        </div>
+
+        <div class="kpi k2">
+            <span>Columns</span>
+            <b>{df.shape[1]:,}</b>
+        </div>
+
+        <div class="kpi k3">
+            <span>Numeric</span>
+            <b>{len(numeric_cols(df))}</b>
+        </div>
+
+        <div class="kpi k4">
+            <span>Categorical</span>
+            <b>{len(categorical_cols(df))}</b>
+        </div>
+
+        <div class="kpi k5">
+            <span>Missing</span>
+            <b>{total_missing(df):,}</b>
+        </div>
+
+        <div class="kpi k6">
+            <span>Duplicates</span>
+            <b>{duplicate_count(df):,}</b>
+        </div>
+
+        <div class="kpi k7">
+            <span>Quality</span>
+            <b>{score}/100</b>
+        </div>
+
+        <div class="kpi k8">
+            <span>Target</span>
+            <b>{str(target)[:18]}</b>
+        </div>
+
+    </div>
+    """
+
+
+# ============================================================
+# DATASET REPORTS
+# ============================================================
+
+def dataset_info(df):
+
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    rows = []
+
+    for column in df.columns:
+
+        series = df[column]
+
+        rows.append({
+            "Column": column,
+            "Data Type": str(series.dtype),
+            "Non-Null": int(series.notna().sum()),
+            "Missing": int(series.isna().sum()),
+            "Missing %": round(
+                series.isna().mean() * 100,
+                2
+            ),
+            "Unique": int(
+                series.nunique(
+                    dropna=True
+                )
+            ),
+            "Sample": ", ".join(
+                map(
+                    str,
+                    series.dropna()
+                    .head(3)
+                    .tolist()
+                )
+            )
+        })
 
     return pd.DataFrame(rows)
 
 
 def missing_report(df):
-    result = pd.DataFrame(
-        {
-            "Column": df.columns,
-            "Missing Count": df.isna().sum().values,
-            "Missing %": (
-                df.isna().mean().values * 100
-            ).round(2),
-            "Non-Missing": df.notna().sum().values,
-        }
-    )
 
-    return result.sort_values(
-        "Missing Count",
-        ascending=False,
+    if df is None:
+        return pd.DataFrame()
+
+    report = pd.DataFrame({
+        "Column": df.columns,
+        "Missing": df.isna().sum().values,
+        "Missing %": (
+            df.isna().mean().values * 100
+        ).round(2)
+    })
+
+    return report.sort_values(
+        ["Missing", "Column"],
+        ascending=[False, True]
     ).reset_index(drop=True)
 
 
 def duplicate_report(df):
-    duplicate_count = int(df.duplicated().sum())
 
-    return pd.DataFrame(
-        {
-            "Metric": [
-                "Total Rows",
-                "Duplicate Rows",
-                "Unique Rows",
-                "Duplicate Percentage",
-            ],
-            "Value": [
-                len(df),
-                duplicate_count,
-                len(df) - duplicate_count,
-                round(
-                    duplicate_count / len(df) * 100,
-                    2,
-                )
-                if len(df) > 0
-                else 0,
-            ],
-        }
+    if df is None:
+        return pd.DataFrame()
+
+    mask = df.duplicated(
+        keep=False
     )
 
+    if not mask.any():
 
-def statistics_report(df):
-    numeric = df.select_dtypes(include=np.number)
+        return pd.DataFrame({
+            "Message": [
+                "No duplicate rows found."
+            ]
+        })
 
-    if numeric.empty:
+    duplicated = df.loc[mask].copy()
+
+    duplicated.insert(
+        0,
+        "Duplicate Group",
+        duplicated.groupby(
+            list(df.columns),
+            dropna=False
+        ).ngroup() + 1
+    )
+
+    return duplicated
+
+
+def unique_report(df):
+
+    if df is None:
         return pd.DataFrame()
 
-    stats = numeric.describe().T
+    return pd.DataFrame({
+        "Column": df.columns,
+        "Unique Values": [
+            df[column].nunique(
+                dropna=True
+            )
+            for column in df.columns
+        ],
+        "Unique %": [
+            round(
+                df[column].nunique(
+                    dropna=True
+                )
+                /
+                max(1, len(df))
+                * 100,
+                2
+            )
+            for column in df.columns
+        ]
+    })
 
-    stats["missing"] = numeric.isna().sum()
-    stats["missing_%"] = numeric.isna().mean() * 100
-    stats["skewness"] = numeric.skew()
-    stats["kurtosis"] = numeric.kurt()
 
-    return stats.round(4)
+# ============================================================
+# DATASET LOADING
+# ============================================================
+
+def load_dataset(file_obj):
+
+    try:
+
+        if file_obj is None:
+
+            return (
+                "Please upload a CSV, XLSX, or XLS file.",
+                "<div class='notice'>No dataset loaded.</div>",
+                pd.DataFrame(),
+                pd.DataFrame(),
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                "No dataset"
+            )
+
+        if isinstance(file_obj, str):
+
+            path = file_obj
+
+        else:
+
+            path = getattr(
+                file_obj,
+                "name",
+                str(file_obj)
+            )
+
+        extension = os.path.splitext(
+            path
+        )[1].lower()
+
+        if extension == ".csv":
+
+            df = pd.read_csv(path)
+
+        elif extension == ".xlsx":
+
+            df = pd.read_excel(
+                path,
+                engine="openpyxl"
+            )
+
+        elif extension == ".xls":
+
+            df = pd.read_excel(
+                path,
+                engine="xlrd"
+            )
+
+        else:
+
+            raise ValueError(
+                "Unsupported file. Use CSV, XLSX, or XLS."
+            )
+
+        if (
+            df.empty
+            or df.shape[1] == 0
+        ):
+
+            raise ValueError(
+                "The uploaded dataset is empty."
+            )
+
+        clear_state()
+
+        df.columns = [
+            str(column).strip()
+            for column in df.columns
+        ]
+
+        APP["original_df"] = df.copy()
+        APP["processed_df"] = df.copy()
+        APP["filename"] = os.path.basename(path)
+
+        info = dataset_info(df)
+
+        missing = missing_report(df)
+        duplicates = duplicate_report(df)
+        statistics = statistics_report(df)
+
+        APP["last_missing"] = missing
+        APP["last_duplicate"] = duplicates
+        APP["last_statistics"] = statistics
+
+        columns = df.columns.tolist()
+        numerical = numeric_cols(df)
+
+        message = (
+            f"Loaded: {APP['filename']} | "
+            f"{len(df):,} rows | "
+            f"{df.shape[1]:,} columns"
+        )
+
+        return (
+            message,
+            summary_html(df),
+            df.head(50),
+            info,
+            numerical,
+            numerical,
+            columns,
+            columns,
+            columns,
+            columns,
+            "Showing first 50 rows"
+        )
+
+    except Exception as error:
+
+        return (
+            f"Could not load dataset: {error}",
+            "<div class='error'>Dataset could not be loaded.</div>",
+            pd.DataFrame(),
+            pd.DataFrame(),
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            "No dataset"
+        )
 
 
-def value_count_report(df, column):
-    if not column:
-        return pd.DataFrame()
+# ============================================================
+# DATASET VIEWER
+# ============================================================
+
+def update_view_controls(view):
+
+    if view in [
+        "Head",
+        "Tail",
+        "Random"
+    ]:
+
+        return (
+            gr.update(
+                visible=True
+            ),
+            gr.update(
+                visible=False
+            ),
+            "Rows"
+        )
+
+    if view == "Custom Range":
+
+        return (
+            gr.update(
+                visible=False
+            ),
+            gr.update(
+                visible=True
+            ),
+            "Custom range"
+        )
 
     return (
-        df[column]
-        .value_counts(dropna=False)
-        .rename_axis(column)
-        .reset_index(name="Count")
+        gr.update(
+            visible=False
+        ),
+        gr.update(
+            visible=False
+        ),
+        "Entire dataset"
     )
 
 
-def outlier_report(df):
-    numeric = numeric_columns(df)
+def make_view(
+    dataset_choice,
+    view,
+    n_rows,
+    start,
+    end,
+    search
+):
+
+    try:
+
+        if dataset_choice == "Original":
+
+            df = APP["original_df"]
+
+        else:
+
+            df = APP["processed_df"]
+
+        if df is None:
+
+            return (
+                pd.DataFrame(),
+                "Load a dataset first."
+            )
+
+        work = df.copy()
+
+        if search and str(search).strip():
+
+            term = str(
+                search
+            ).strip().lower()
+
+            mask = (
+                work.astype(str)
+                .apply(
+                    lambda column:
+                    column.str.lower()
+                    .str.contains(
+                        re.escape(term),
+                        na=False
+                    )
+                )
+                .any(axis=1)
+            )
+
+            work = work.loc[mask]
+
+        total = len(work)
+
+        n = int(
+            n_rows or 50
+        )
+
+        if view == "Head":
+
+            shown = work.head(n)
+
+            description = (
+                f"Showing first "
+                f"{len(shown):,} rows "
+                f"of {total:,}"
+            )
+
+        elif view == "Tail":
+
+            shown = work.tail(n)
+
+            description = (
+                f"Showing last "
+                f"{len(shown):,} rows "
+                f"of {total:,}"
+            )
+
+        elif view == "Random":
+
+            sample_size = min(
+                n,
+                total
+            )
+
+            if sample_size:
+
+                shown = work.sample(
+                    sample_size,
+                    random_state=42
+                )
+
+            else:
+
+                shown = work.head(0)
+
+            description = (
+                f"Showing random "
+                f"{len(shown):,} rows "
+                f"from {total:,}"
+            )
+
+        elif view == "Entire Dataset":
+
+            shown = work.head(5000)
+
+            description = (
+                f"Showing entire dataset — "
+                f"{total:,} rows"
+            )
+
+            if total > 5000:
+
+                description += (
+                    " (display capped at "
+                    "5,000 for responsiveness)"
+                )
+
+        else:
+
+            start_value = max(
+                0,
+                int(start or 0)
+            )
+
+            end_value = min(
+                total,
+                int(end or 147)
+            )
+
+            if end_value < start_value:
+
+                end_value = start_value
+
+            shown = work.iloc[
+                start_value:end_value
+            ]
+
+            description = (
+                f"Showing rows "
+                f"{start_value + 1:,}–"
+                f"{end_value:,} "
+                f"of {total:,}"
+            )
+
+        APP["viewed_df"] = shown.copy()
+        APP["viewed_description"] = description
+
+        final_description = (
+            f"{description} | "
+            f"Displayed: {len(shown):,} | "
+            f"Columns: {shown.shape[1]}"
+        )
+
+        return (
+            shown,
+            final_description
+        )
+
+    except Exception as error:
+
+        return (
+            pd.DataFrame(),
+            f"Viewer error: {error}"
+        )
+
+
+def clear_search(
+    dataset_choice,
+    view,
+    n_rows,
+    start,
+    end
+):
+
+    return make_view(
+        dataset_choice,
+        view,
+        n_rows,
+        start,
+        end,
+        ""
+    )
+
+
+# ============================================================
+# STATISTICS
+# ============================================================
+
+def statistics_report(
+    df,
+    selected=None,
+    percentile=50
+):
+
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    columns = (
+        selected
+        if selected
+        else numeric_cols(df)
+    )
+
+    columns = [
+        column
+        for column in columns
+        if (
+            column in df.columns
+            and
+            pd.api.types.is_numeric_dtype(
+                df[column]
+            )
+        )
+    ]
+
+    if not columns:
+        return pd.DataFrame()
+
+    percentile = float(
+        percentile or 50
+    )
 
     rows = []
 
-    for col in numeric:
-        series = df[col].dropna()
+    for column in columns:
+
+        series = pd.to_numeric(
+            df[column],
+            errors="coerce"
+        ).dropna()
 
         if series.empty:
             continue
 
-        q1 = series.quantile(0.25)
-        q3 = series.quantile(0.75)
-        iqr = q3 - q1
+        mode = series.mode()
 
-        lower = q1 - 1.5 * iqr
-        upper = q3 + 1.5 * iqr
+        q1 = series.quantile(.25)
+        median = series.quantile(.50)
+        q3 = series.quantile(.75)
 
-        mask = (df[col] < lower) | (df[col] > upper)
+        rows.append({
 
-        rows.append(
-            {
-                "Column": col,
-                "Q1": round(q1, 4),
-                "Q3": round(q3, 4),
-                "IQR": round(iqr, 4),
-                "Lower Bound": round(lower, 4),
-                "Upper Bound": round(upper, 4),
-                "Outlier Rows": int(mask.sum()),
-                "Outlier %": round(mask.mean() * 100, 2),
-            }
+            "Column": column,
+
+            "Count": len(series),
+
+            "Mean": series.mean(),
+
+            "Median": median,
+
+            "Mode": (
+                mode.iloc[0]
+                if not mode.empty
+                else np.nan
+            ),
+
+            "Min": series.min(),
+
+            "Max": series.max(),
+
+            "Range":
+                series.max() -
+                series.min(),
+
+            "Variance":
+                series.var(),
+
+            "Std Dev":
+                series.std(),
+
+            "Q1": q1,
+
+            "Q3": q3,
+
+            "IQR":
+                q3 - q1,
+
+            f"P{int(percentile)}":
+                series.quantile(
+                    percentile / 100
+                ),
+
+            "P10":
+                series.quantile(.10),
+
+            "P90":
+                series.quantile(.90),
+
+            "Skewness":
+                series.skew(),
+
+            "Kurtosis":
+                series.kurt(),
+
+            "MAD":
+                np.median(
+                    np.abs(
+                        series -
+                        series.median()
+                    )
+                ),
+
+            "Five Number":
+                (
+                    f"{series.min():.4g} | "
+                    f"{q1:.4g} | "
+                    f"{median:.4g} | "
+                    f"{q3:.4g} | "
+                    f"{series.max():.4g}"
+                )
+        })
+
+    return pd.DataFrame(
+        rows
+    ).round(5)
+
+
+def run_statistics(
+    columns,
+    percentile
+):
+
+    df, error = ensure_df()
+
+    if error:
+
+        return (
+            pd.DataFrame(),
+            error
         )
 
-    return pd.DataFrame(rows)
-
-
-def correlation_table(df, method="pearson"):
-    numeric = df.select_dtypes(include=np.number)
-
-    if numeric.shape[1] < 2:
-        return pd.DataFrame()
-
-    return numeric.corr(method=method).round(3)
-
-
-def cramers_v(x, y):
-    table = pd.crosstab(x, y)
-
-    if table.empty:
-        return np.nan
-
-    observed = table.values.astype(float)
-
-    total = observed.sum()
-
-    if total == 0:
-        return np.nan
-
-    row_sum = observed.sum(axis=1, keepdims=True)
-    col_sum = observed.sum(axis=0, keepdims=True)
-
-    expected = row_sum @ col_sum / total
-
-    expected = np.where(expected == 0, 1e-12, expected)
-
-    chi2 = ((observed - expected) ** 2 / expected).sum()
-
-    phi2 = chi2 / total
-
-    rows, cols = observed.shape
-
-    phi2corr = max(
-        0,
-        phi2
-        - ((cols - 1) * (rows - 1)) / max(total - 1, 1),
+    result = statistics_report(
+        df,
+        columns,
+        percentile
     )
 
-    rcorr = rows - (
-        (rows - 1) ** 2
-    ) / max(total - 1, 1)
+    APP["last_statistics"] = result
 
-    kcorr = cols - (
-        (cols - 1) ** 2
-    ) / max(total - 1, 1)
+    if result.empty:
 
-    denominator = min(kcorr - 1, rcorr - 1)
+        return (
+            result,
+            "Select at least one numerical column."
+        )
 
-    if denominator <= 0:
-        return np.nan
+    return (
+        result,
+        f"Statistics calculated for "
+        f"{len(result)} column(s)."
+    )
 
-    return np.sqrt(phi2corr / denominator)
 
+# ============================================================
+# HEALTHCARE VALIDATION
+# ============================================================
 
-def categorical_association(df):
-    cats = categorical_columns(df)
-
-    if len(cats) < 2:
-        return pd.DataFrame()
+def healthcare_validation(df):
 
     rows = []
 
-    for i in range(len(cats)):
-        for j in range(i + 1, len(cats)):
-            try:
-                value = cramers_v(
-                    df[cats[i]].fillna("Missing"),
-                    df[cats[j]].fillna("Missing"),
-                )
+    for column in df.columns:
 
-                rows.append(
-                    {
-                        "Column 1": cats[i],
-                        "Column 2": cats[j],
-                        "Cramer's V": (
-                            round(value, 4)
-                            if pd.notna(value)
-                            else np.nan
-                        ),
-                    }
-                )
-            except Exception:
-                pass
+        name = str(
+            column
+        ).lower()
 
-    return pd.DataFrame(rows).sort_values(
-        "Cramer's V",
-        ascending=False,
-    )
-
-
-def convert_possible_dates(df):
-    result = df.copy()
-
-    converted = []
-
-    for col in result.columns:
-        if result[col].dtype == "object":
-            sample = result[col].dropna().astype(str).head(200)
-
-            if len(sample) == 0:
-                continue
-
-            parsed = pd.to_datetime(
-                sample,
-                errors="coerce",
-            )
-
-            success_rate = parsed.notna().mean()
-
-            if success_rate >= 0.80:
-                full_parsed = pd.to_datetime(
-                    result[col],
-                    errors="coerce",
-                )
-
-                if full_parsed.notna().sum() > 0:
-                    result[col] = full_parsed
-                    converted.append(col)
-
-    return result, converted
-
-
-def create_csv_bytes(df):
-    return df.to_csv(index=False).encode("utf-8")
-
-
-def create_excel_bytes(df):
-    output = io.BytesIO()
-
-    with pd.ExcelWriter(
-        output,
-        engine="openpyxl",
-    ) as writer:
-        df.to_excel(
-            writer,
-            index=False,
-            sheet_name="Cleaned_Data",
+        series = pd.to_numeric(
+            df[column],
+            errors="coerce"
         )
 
-    output.seek(0)
-
-    return output.getvalue()
-
-
-def apply_missing_strategy(df, strategy, constant_value="0"):
-    result = df.copy()
-
-    if strategy == "Do nothing":
-        return result
-
-    if strategy == "Mean":
-        for col in numeric_columns(result):
-            result[col] = result[col].fillna(
-                result[col].mean()
-            )
-
-    elif strategy == "Median":
-        for col in numeric_columns(result):
-            result[col] = result[col].fillna(
-                result[col].median()
-            )
-
-    elif strategy == "Mode":
-        for col in result.columns:
-            mode = result[col].mode(dropna=True)
-
-            if not mode.empty:
-                result[col] = result[col].fillna(
-                    mode.iloc[0]
-                )
-
-    elif strategy == "Constant":
-        result = result.fillna(constant_value)
-
-    elif strategy == "Forward Fill":
-        result = result.ffill()
-
-    elif strategy == "Backward Fill":
-        result = result.bfill()
-
-    return result
-
-
-def apply_outlier_treatment(
-    df,
-    treatment,
-    selected_columns,
-):
-    result = df.copy()
-
-    if treatment == "Do nothing":
-        return result, 0
-
-    if not selected_columns:
-        return result, 0
-
-    original_rows = len(result)
-
-    if treatment == "Remove outlier rows":
-        keep_mask = pd.Series(
-            True,
-            index=result.index,
+        mask = pd.Series(
+            False,
+            index=df.index
         )
 
-        for col in selected_columns:
-            if col not in result.columns:
-                continue
+        rule = None
 
-            series = result[col]
+        if "age" in name:
 
-            q1 = series.quantile(0.25)
-            q3 = series.quantile(0.75)
-
-            iqr = q3 - q1
-
-            lower = q1 - 1.5 * iqr
-            upper = q3 + 1.5 * iqr
-
-            keep_mask &= (
-                series.isna()
-                | (
-                    (series >= lower)
-                    & (series <= upper)
-                )
+            mask = (
+                (series < 0)
+                |
+                (series > 120)
             )
 
-        result = result.loc[keep_mask].copy()
-
-    elif treatment == "Cap to IQR bounds":
-        for col in selected_columns:
-            if col not in result.columns:
-                continue
-
-            series = result[col]
-
-            q1 = series.quantile(0.25)
-            q3 = series.quantile(0.75)
-
-            iqr = q3 - q1
-
-            lower = q1 - 1.5 * iqr
-            upper = q3 + 1.5 * iqr
-
-            result[col] = series.clip(
-                lower=lower,
-                upper=upper,
-            )
-
-    removed = original_rows - len(result)
-
-    return result, removed
-
-
-def build_preprocessor(df, scaling=True):
-    numeric = numeric_columns(df)
-    categorical = categorical_columns(df)
-
-    transformers = []
-
-    if numeric:
-        numeric_steps = [
-            (
-                "imputer",
-                SimpleImputer(
-                    strategy="median"
-                ),
-            )
-        ]
-
-        if scaling:
-            numeric_steps.append(
-                (
-                    "scaler",
-                    StandardScaler(),
-                )
-            )
-
-        numeric_pipe = Pipeline(
-            numeric_steps
-        )
-
-        transformers.append(
-            (
-                "numeric",
-                numeric_pipe,
-                numeric,
-            )
-        )
-
-    if categorical:
-        categorical_pipe = Pipeline(
-            [
-                (
-                    "imputer",
-                    SimpleImputer(
-                        strategy="most_frequent"
-                    ),
-                ),
-                (
-                    "encoder",
-                    OneHotEncoder(
-                        handle_unknown="ignore",
-                        sparse_output=False,
-                    ),
-                ),
-            ]
-        )
-
-        transformers.append(
-            (
-                "categorical",
-                categorical_pipe,
-                categorical,
-            )
-        )
-
-    return ColumnTransformer(
-        transformers=transformers,
-        remainder="drop",
-    )
-
-
-def train_model(
-    df,
-    target,
-    problem_type,
-    model_name,
-    test_size,
-    scaling,
-):
-    if target not in df.columns:
-        return None, "Target column was not found."
-
-    if df[target].nunique(dropna=True) < 2:
-        return None, "Target must contain at least two different values."
-
-    data = df.dropna(subset=[target]).copy()
-
-    X = data.drop(columns=[target])
-    y = data[target]
-
-    if X.shape[1] == 0:
-        return None, "No feature columns are available."
-
-    if problem_type == "Classification":
-
-        if y.dtype == "object" or str(y.dtype) == "category":
-            encoder = LabelEncoder()
-            y = encoder.fit_transform(
-                y.astype(str)
-            )
-            target_classes = list(
-                encoder.classes_
-            )
-        else:
-            target_classes = list(
-                pd.Series(y).dropna().unique()
-            )
-
-        if len(np.unique(y)) < 2:
-            return None, "Classification requires at least two classes."
-
-        if model_name == "Random Forest":
-            model = RandomForestClassifier(
-                n_estimators=250,
-                random_state=42,
-                n_jobs=-1,
-            )
-
-        elif model_name == "Gradient Boosting":
-            model = GradientBoostingClassifier(
-                random_state=42
-            )
-
-        else:
-            model = LogisticRegression(
-                max_iter=2000
-            )
-
-    else:
-
-        y = pd.to_numeric(
-            y,
-            errors="coerce",
-        )
-
-        valid = y.notna()
-
-        X = X.loc[valid]
-        y = y.loc[valid]
-
-        if model_name == "Random Forest":
-            model = RandomForestRegressor(
-                n_estimators=250,
-                random_state=42,
-                n_jobs=-1,
-            )
-
-        elif model_name == "Gradient Boosting":
-            model = GradientBoostingRegressor(
-                random_state=42
-            )
-
-        elif model_name == "Ridge":
-            model = Ridge(alpha=1.0)
-
-        else:
-            model = LinearRegression()
-
-        target_classes = None
-
-    if len(X) < 10:
-        return None, "At least 10 usable rows are recommended for training."
-
-    stratify = None
-
-    if (
-        problem_type == "Classification"
-        and len(np.unique(y)) > 1
-    ):
-        class_counts = pd.Series(y).value_counts()
-
-        if class_counts.min() >= 2:
-            stratify = y
-
-    try:
-        X_train, X_test, y_train, y_test = train_test_split(
-            X,
-            y,
-            test_size=test_size,
-            random_state=42,
-            stratify=stratify,
-        )
-    except Exception:
-        X_train, X_test, y_train, y_test = train_test_split(
-            X,
-            y,
-            test_size=test_size,
-            random_state=42,
-        )
-
-    preprocessor = build_preprocessor(
-        X,
-        scaling=scaling,
-    )
-
-    pipeline = Pipeline(
-        [
-            (
-                "preprocessor",
-                preprocessor,
-            ),
-            (
-                "model",
-                model,
-            ),
-        ]
-    )
-
-    pipeline.fit(
-        X_train,
-        y_train,
-    )
-
-    predictions = pipeline.predict(X_test)
-
-    result = {
-        "pipeline": pipeline,
-        "X_test": X_test,
-        "y_test": y_test,
-        "predictions": predictions,
-        "target_classes": target_classes,
-        "problem_type": problem_type,
-        "target": target,
-        "model_name": model_name,
-    }
-
-    return result, None
-
-
-# ---------------------------------------------------------
-# HEADER
-# ---------------------------------------------------------
-
-st.markdown(
-    """
-    <div class="dashboard-header">
-        <h1>AI and ML Analytics Dashboard</h1>
-        <p>
-            Data Analysis, Data Cleaning, Visualization, Feature Analysis,
-            Outlier Detection, Target Analysis and Machine Learning
-        </p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-# ---------------------------------------------------------
-# SIDEBAR - DATASET
-# ---------------------------------------------------------
-
-with st.sidebar:
-
-    st.header("Dataset")
-
-    uploaded_file = st.file_uploader(
-        "Upload Dataset",
-        type=["csv", "xlsx", "xls"],
-        help="Upload CSV, XLSX or XLS files.",
-    )
-
-    if uploaded_file is not None:
-
-        if (
-            st.session_state.filename
-            != uploaded_file.name
-        ):
-            df_loaded, error = load_dataset(
-                uploaded_file
-            )
-
-            if error:
-                st.error(error)
-            else:
-                st.session_state.original_df = (
-                    df_loaded.copy(deep=True)
-                )
-
-                st.session_state.working_df = (
-                    df_loaded.copy(deep=True)
-                )
-
-                st.session_state.filename = (
-                    uploaded_file.name
-                )
-
-                st.session_state.cleaning_log = []
-
-                st.session_state.model_result = None
-
-                st.success(
-                    "Dataset loaded successfully."
-                )
-
-    if st.session_state.working_df is not None:
-
-        st.markdown(
-            f"""
-            <div class="success-box">
-                <b>Loaded file:</b><br>
-                {st.session_state.filename}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.write(
-            f"Current rows: {len(st.session_state.working_df):,}"
-        )
-
-        st.write(
-            f"Current columns: {len(st.session_state.working_df.columns):,}"
-        )
-
-        if st.button(
-            "Reset to Original Dataset",
-            use_container_width=True,
-        ):
-            if reset_dataset():
-                st.success(
-                    "Dataset restored to the original uploaded version."
-                )
-                st.rerun()
-
-# ---------------------------------------------------------
-# NO DATA MESSAGE
-# ---------------------------------------------------------
-
-if st.session_state.working_df is None:
-
-    st.markdown(
-        """
-        <div class="info-box">
-            <b>Start here:</b>
-            Upload a CSV, XLSX or XLS dataset from the left panel.
-            The complete dashboard will become available after the dataset loads.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.stop()
-
-
-df = st.session_state.working_df
-
-# ---------------------------------------------------------
-# TOP DATASET SUMMARY
-# ---------------------------------------------------------
-
-st.markdown(
-    '<div class="section-title">Dataset Summary</div>',
-    unsafe_allow_html=True,
-)
-
-summary_cols = st.columns(8)
-
-summary_values = [
-    ("Rows", f"{len(df):,}"),
-    ("Columns", f"{len(df.columns):,}"),
-    ("Numeric", f"{len(numeric_columns(df)):,}"),
-    ("Categorical", f"{len(categorical_columns(df)):,}"),
-    ("Date/Time", f"{len(datetime_columns(df)):,}"),
-    ("Missing", f"{int(df.isna().sum().sum()):,}"),
-    ("Duplicates", f"{int(df.duplicated().sum()):,}"),
-    (
-        "Memory MB",
-        f"{df.memory_usage(deep=True).sum() / 1024**2:.2f}",
-    ),
-]
-
-for column, (title, value) in zip(
-    summary_cols,
-    summary_values,
-):
-    with column:
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-title">{title}</div>
-                <div class="metric-value">{value}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-st.write("")
-
-# ---------------------------------------------------------
-# MAIN NAVIGATION
-# ---------------------------------------------------------
-
-tabs = st.tabs(
-    [
-        "Overview",
-        "Statistics",
-        "Data Quality",
-        "EDA",
-        "Cleaning",
-        "Features",
-        "Outliers",
-        "Target Analysis",
-        "Model Training",
-        "Model Comparison",
-        "Download",
-        "Audit Log",
-    ]
-)
-
-# =========================================================
-# OVERVIEW
-# =========================================================
-
-with tabs[0]:
-
-    st.markdown(
-        '<div class="section-title">Overview</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.subheader("Dataset Information")
-
-    c1, c2 = st.columns(2)
-
-    with c1:
-        st.dataframe(
-            dataset_summary(df),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    with c2:
-        st.dataframe(
-            column_information(df),
-            use_container_width=True,
-            hide_index=True,
-            height=330,
-        )
-
-    st.subheader("Dataset Viewer")
-
-    view_mode = st.selectbox(
-        "Choose rows to display",
-        [
-            "First 5",
-            "First 10",
-            "First 25",
-            "First 50",
-            "First 100",
-            "First 147",
-            "First 500",
-            "Last 5",
-            "Last 10",
-            "Last 25",
-            "Last 50",
-            "Last 100",
-            "Last 147",
-            "Last 500",
-            "Middle 50",
-            "Middle 100",
-            "Middle 147",
-            "Middle 500",
-            "All Rows",
-            "Custom Range",
-        ],
-    )
-
-    if view_mode == "All Rows":
-        view_df = df
-
-    elif view_mode == "Custom Range":
-
-        start_row = st.number_input(
-            "Start row",
-            min_value=1,
-            max_value=max(len(df), 1),
-            value=1,
-            step=1,
-        )
-
-        number_of_rows = st.number_input(
-            "Number of rows",
-            min_value=1,
-            max_value=max(len(df), 1),
-            value=min(50, len(df)),
-            step=1,
-        )
-
-        start_index = int(start_row) - 1
-
-        view_df = df.iloc[
-            start_index : start_index
-            + int(number_of_rows)
-        ]
-
-    elif view_mode.startswith("First"):
-
-        n = int(
-            view_mode.split()[1]
-        )
-
-        view_df = df.head(n)
-
-    elif view_mode.startswith("Last"):
-
-        n = int(
-            view_mode.split()[1]
-        )
-
-        view_df = df.tail(n)
-
-    else:
-
-        n = int(
-            view_mode.split()[1]
-        )
-
-        start = max(
-            (len(df) - n) // 2,
-            0,
-        )
-
-        view_df = df.iloc[
-            start : start + n
-        ]
-
-    st.dataframe(
-        view_df,
-        use_container_width=True,
-        height=450,
-    )
-
-# =========================================================
-# STATISTICS
-# =========================================================
-
-with tabs[1]:
-
-    st.markdown(
-        '<div class="section-title">Statistics</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.subheader("Descriptive Statistics")
-
-    stats = statistics_report(df)
-
-    if stats.empty:
-        st.info(
-            "No numeric columns are available for statistical analysis."
-        )
-    else:
-        st.dataframe(
-            stats,
-            use_container_width=True,
-        )
-
-    st.subheader("Value Counts")
-
-    if len(df.columns) > 0:
-
-        selected_value_column = st.selectbox(
-            "Select a column",
-            df.columns,
-            key="value_count_column",
-        )
-
-        counts = value_count_report(
-            df,
-            selected_value_column,
-        )
-
-        st.dataframe(
-            counts,
-            use_container_width=True,
-            hide_index=True,
-        )
-
-# =========================================================
-# DATA QUALITY
-# =========================================================
-
-with tabs[2]:
-
-    st.markdown(
-        '<div class="section-title">Data Quality</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.subheader("Missing Value Analysis")
-
-    missing = missing_report(df)
-
-    st.dataframe(
-        missing,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    missing_nonzero = missing[
-        missing["Missing Count"] > 0
-    ]
-
-    if not missing_nonzero.empty:
-
-        fig, ax = plt.subplots(
-            figsize=(10, 4)
-        )
-
-        sns.barplot(
-            data=missing_nonzero,
-            x="Missing %",
-            y="Column",
-            ax=ax,
-        )
-
-        ax.set_title(
-            "Missing Values by Column"
-        )
-
-        ax.set_xlabel(
-            "Missing Percentage"
-        )
-
-        ax.set_ylabel(
-            "Column"
-        )
-
-        plt.tight_layout()
-
-        st.pyplot(fig)
-
-        plt.close(fig)
-
-    else:
-        st.success(
-            "No missing values were found."
-        )
-
-    st.subheader("Duplicate Analysis")
-
-    duplicate_info = duplicate_report(df)
-
-    st.dataframe(
-        duplicate_info,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    if df.duplicated().sum() > 0:
-
-        st.warning(
-            f"{int(df.duplicated().sum()):,} duplicate rows are currently present."
-        )
-
-    else:
-        st.success(
-            "No duplicate rows are currently present."
-        )
-
-    st.subheader("Column Information")
-
-    st.dataframe(
-        column_information(df),
-        use_container_width=True,
-        hide_index=True,
-    )
-
-# =========================================================
-# EDA
-# =========================================================
-
-with tabs[3]:
-
-    st.markdown(
-        '<div class="section-title">Exploratory Data Analysis</div>',
-        unsafe_allow_html=True,
-    )
-
-    chart_type = st.selectbox(
-        "Select visualization",
-        [
-            "Histogram",
-            "Box Plot",
-            "Bar Chart",
-            "Scatter Plot",
-            "Correlation Heatmap",
-            "Missing Values",
-        ],
-    )
-
-    numeric = numeric_columns(df)
-    all_columns = df.columns.tolist()
-
-    if chart_type == "Histogram":
-
-        if numeric:
-
-            column = st.selectbox(
-                "Numeric column",
-                numeric,
-                key="eda_hist",
-            )
-
-            bins = st.slider(
-                "Number of bins",
-                5,
-                100,
-                30,
-            )
-
-            fig, ax = plt.subplots(
-                figsize=(10, 5)
-            )
-
-            sns.histplot(
-                df[column].dropna(),
-                bins=bins,
-                kde=True,
-                ax=ax,
-            )
-
-            ax.set_title(
-                f"Distribution of {column}"
-            )
-
-            st.pyplot(fig)
-
-            plt.close(fig)
-
-        else:
-            st.info(
-                "No numeric columns available."
-            )
-
-    elif chart_type == "Box Plot":
-
-        if numeric:
-
-            column = st.selectbox(
-                "Numeric column",
-                numeric,
-                key="eda_box",
-            )
-
-            fig, ax = plt.subplots(
-                figsize=(10, 4)
-            )
-
-            sns.boxplot(
-                x=df[column],
-                ax=ax,
-            )
-
-            ax.set_title(
-                f"Box Plot of {column}"
-            )
-
-            st.pyplot(fig)
-
-            plt.close(fig)
-
-        else:
-            st.info(
-                "No numeric columns available."
-            )
-
-    elif chart_type == "Bar Chart":
-
-        column = st.selectbox(
-            "Column",
-            all_columns,
-            key="eda_bar",
-        )
-
-        top_n = st.slider(
-            "Top categories",
-            5,
-            50,
-            15,
-        )
-
-        counts = (
-            df[column]
-            .value_counts(dropna=False)
-            .head(top_n)
-        )
-
-        fig, ax = plt.subplots(
-            figsize=(10, 5)
-        )
-
-        sns.barplot(
-            x=counts.values,
-            y=counts.index.astype(str),
-            ax=ax,
-        )
-
-        ax.set_title(
-            f"Top Values in {column}"
-        )
-
-        ax.set_xlabel("Count")
-        ax.set_ylabel(column)
-
-        st.pyplot(fig)
-
-        plt.close(fig)
-
-    elif chart_type == "Scatter Plot":
-
-        if len(numeric) >= 2:
-
-            c1, c2 = st.columns(2)
-
-            with c1:
-                x_col = st.selectbox(
-                    "X-axis",
-                    numeric,
-                    key="eda_scatter_x",
-                )
-
-            with c2:
-                y_col = st.selectbox(
-                    "Y-axis",
-                    [
-                        c
-                        for c in numeric
-                        if c != x_col
-                    ],
-                    key="eda_scatter_y",
-                )
-
-            fig, ax = plt.subplots(
-                figsize=(10, 5)
-            )
-
-            sns.scatterplot(
-                data=df,
-                x=x_col,
-                y=y_col,
-                ax=ax,
-            )
-
-            ax.set_title(
-                f"{x_col} vs {y_col}"
-            )
-
-            st.pyplot(fig)
-
-            plt.close(fig)
-
-        else:
-            st.info(
-                "At least two numeric columns are required."
-            )
-
-    elif chart_type == "Correlation Heatmap":
-
-        corr = correlation_table(df)
-
-        if corr.empty:
-            st.info(
-                "At least two numeric columns are required."
-            )
-        else:
-
-            fig, ax = plt.subplots(
-                figsize=(12, 7)
-            )
-
-            sns.heatmap(
-                corr,
-                annot=True,
-                fmt=".2f",
-                cmap="RdBu_r",
-                center=0,
-                ax=ax,
-            )
-
-            ax.set_title(
-                "Correlation Heatmap"
-            )
-
-            plt.tight_layout()
-
-            st.pyplot(fig)
-
-            plt.close(fig)
-
-            st.subheader(
-                "Pearson Correlation Table"
-            )
-
-            st.dataframe(
-                corr,
-                use_container_width=True,
-            )
-
-    elif chart_type == "Missing Values":
-
-        missing_plot = missing[
-            missing["Missing Count"] > 0
-        ]
-
-        if missing_plot.empty:
-            st.success(
-                "No missing values found."
-            )
-        else:
-
-            fig, ax = plt.subplots(
-                figsize=(10, 5)
-            )
-
-            sns.barplot(
-                data=missing_plot,
-                x="Missing Count",
-                y="Column",
-                ax=ax,
-            )
-
-            ax.set_title(
-                "Missing Value Distribution"
-            )
-
-            st.pyplot(fig)
-
-            plt.close(fig)
-
-    st.subheader(
-        "Categorical Association"
-    )
-
-    association = categorical_association(
-        df
-    )
-
-    if association.empty:
-        st.info(
-            "At least two categorical columns are required."
-        )
-    else:
-        st.dataframe(
-            association,
-            use_container_width=True,
-            hide_index=True,
-        )
-
-# =========================================================
-# CLEANING
-# =========================================================
-
-with tabs[4]:
-
-    st.markdown(
-        '<div class="section-title">Data Cleaning</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-        <div class="info-box">
-            Cleaning operations are applied to the current dataset.
-            You can apply one operation, inspect the result, and then apply another operation.
-            The Reset button always returns to the original uploaded dataset.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    current_rows_before = len(df)
-    current_columns_before = len(df.columns)
-
-    st.write(
-        f"Current dataset: {current_rows_before:,} rows × "
-        f"{current_columns_before:,} columns"
-    )
-
-    st.subheader("Duplicate Treatment")
-
-    duplicate_action = st.selectbox(
-        "Duplicate treatment",
-        [
-            "Do nothing",
-            "Remove duplicate rows",
-        ],
-        key="clean_duplicates",
-    )
-
-    st.subheader("Missing Value Treatment")
-
-    missing_strategy = st.selectbox(
-        "Missing value strategy",
-        [
-            "Do nothing",
-            "Mean",
-            "Median",
-            "Mode",
-            "Constant",
-            "Forward Fill",
-            "Backward Fill",
-        ],
-        key="clean_missing",
-    )
-
-    constant_value = "0"
-
-    if missing_strategy == "Constant":
-
-        constant_value = st.text_input(
-            "Constant value",
-            value="0",
-            key="constant_value",
-        )
-
-    st.subheader("Data Type Treatment")
-
-    datatype_action = st.selectbox(
-        "Data type action",
-        [
-            "Do nothing",
-            "Convert numeric-looking columns",
-            "Detect and convert date columns",
-        ],
-        key="clean_datatype",
-    )
-
-    st.subheader("Outlier Treatment")
-
-    outlier_action = st.selectbox(
-        "Outlier action",
-        [
-            "Do nothing",
-            "Remove outlier rows",
-            "Cap to IQR bounds",
-        ],
-        key="clean_outlier",
-    )
-
-    if numeric_columns(df):
-
-        outlier_columns = st.multiselect(
-            "Numeric columns for outlier treatment",
-            numeric_columns(df),
-            default=[],
-            key="clean_outlier_columns",
-        )
-
-    else:
-
-        outlier_columns = []
-
-        st.info(
-            "No numeric columns are available for outlier treatment."
-        )
-
-    st.subheader("Numeric Precision")
-
-    numeric_precision = st.number_input(
-        "Decimal places",
-        min_value=0,
-        max_value=10,
-        value=4,
-        step=1,
-        key="clean_precision",
-    )
-
-    st.subheader("Apply Cleaning")
-
-    if st.button(
-        "Apply Selected Cleaning Operations",
-        type="primary",
-        use_container_width=True,
-        key="apply_cleaning",
-    ):
-
-        working = st.session_state.working_df.copy(
-            deep=True
-        )
-
-        log_entries = []
-
-        # Duplicate cleaning
-        if (
-            duplicate_action
-            == "Remove duplicate rows"
-        ):
-
-            before = len(working)
-
-            working = working.drop_duplicates().copy()
-
-            removed = before - len(working)
-
-            log_entries.append(
-                f"Duplicate treatment: removed {removed:,} duplicate rows."
-            )
-
-        # Missing treatment
-        if missing_strategy != "Do nothing":
-
-            before_missing = int(
-                working.isna().sum().sum()
-            )
-
-            working = apply_missing_strategy(
-                working,
-                missing_strategy,
-                constant_value,
-            )
-
-            after_missing = int(
-                working.isna().sum().sum()
-            )
-
-            log_entries.append(
-                f"Missing value treatment: {missing_strategy}. "
-                f"Missing cells changed from {before_missing:,} to {after_missing:,}."
-            )
-
-        # Data type treatment
-        if (
-            datatype_action
-            == "Convert numeric-looking columns"
-        ):
-
-            converted_columns = []
-
-            for col in working.columns:
-
-                if working[col].dtype == "object":
-
-                    original_non_null = (
-                        working[col].notna().sum()
-                    )
-
-                    if original_non_null == 0:
-                        continue
-
-                    converted = pd.to_numeric(
-                        working[col],
-                        errors="coerce",
-                    )
-
-                    converted_non_null = (
-                        converted.notna().sum()
-                    )
-
-                    if (
-                        converted_non_null
-                        >= original_non_null * 0.90
-                    ):
-                        working[col] = converted
-                        converted_columns.append(
-                            col
-                        )
-
-            log_entries.append(
-                "Numeric conversion completed. "
-                f"Converted columns: {', '.join(converted_columns) if converted_columns else 'None'}."
-            )
+            rule = "Age outside 0–120"
 
         elif (
-            datatype_action
-            == "Detect and convert date columns"
+            "blood pressure" in name
+            or
+            "blood_pressure" in name
         ):
 
-            working, converted_dates = (
-                convert_possible_dates(
-                    working
-                )
-            )
+            mask = series <= 0
 
-            log_entries.append(
-                "Date detection completed. "
-                f"Converted columns: {', '.join(converted_dates) if converted_dates else 'None'}."
-            )
+            rule = "Blood pressure <= 0"
 
-        # Outlier treatment
-        if (
-            outlier_action != "Do nothing"
-            and outlier_columns
+        elif (
+            "heart rate" in name
+            or
+            "heartrate" in name
+            or
+            "pulse" in name
         ):
 
-            working, removed = (
-                apply_outlier_treatment(
-                    working,
-                    outlier_action,
-                    outlier_columns,
+            mask = series <= 0
+
+            rule = "Heart rate <= 0"
+
+        elif "cholesterol" in name:
+
+            mask = series < 0
+
+            rule = "Cholesterol < 0"
+
+        elif "bmi" in name:
+
+            mask = (
+                (series <= 0)
+                |
+                (series > 100)
+            )
+
+            rule = "BMI <= 0 or > 100"
+
+        if rule and mask.any():
+
+            rows.append([
+                column,
+                rule,
+                int(mask.sum()),
+                (
+                    "Warning only; records are "
+                    "not deleted automatically."
                 )
+            ])
+
+    if not rows:
+
+        return pd.DataFrame({
+            "Status": [
+                "No healthcare-specific "
+                "suspicious values detected."
+            ]
+        })
+
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "Column",
+            "Rule",
+            "Suspicious Values",
+            "Action"
+        ]
+    )
+
+
+# ============================================================
+# DATA QUALITY CENTER
+# ============================================================
+
+def quality_analysis():
+
+    df, error = ensure_df()
+
+    if error:
+
+        return (
+            pd.DataFrame(),
+            "<div class='notice'>Load a dataset first.</div>",
+            pd.DataFrame(),
+            pd.DataFrame()
+        )
+
+    rows = []
+
+    for column in df.columns:
+
+        series = df[column]
+
+        issues = []
+
+        if series.isna().any():
+            issues.append("missing")
+
+        if series.nunique(
+            dropna=True
+        ) <= 1:
+            issues.append("constant")
+
+        if series.nunique(
+            dropna=True
+        ) <= max(
+            1,
+            int(len(df) * .01)
+        ):
+            issues.append("near-constant")
+
+        if series.notna().sum() == 0:
+            issues.append("empty")
+
+        if series.dtype == "object":
+
+            converted = pd.to_numeric(
+                series,
+                errors="coerce"
             )
 
             if (
-                outlier_action
-                == "Remove outlier rows"
+                converted.notna().sum() > 0
+                and
+                converted.notna().mean() >= .8
             ):
-                log_entries.append(
-                    f"Outlier treatment: removed {removed:,} rows "
-                    f"from the selected columns."
+
+                issues.append(
+                    "numeric-looking text"
                 )
 
-            else:
-                log_entries.append(
-                    "Outlier treatment: values were capped to IQR bounds."
-                )
-
-        # Numeric rounding
-        if numeric_precision >= 0:
-
-            numeric_now = numeric_columns(
-                working
-            )
-
-            if numeric_now:
-
-                working[
-                    numeric_now
-                ] = working[
-                    numeric_now
-                ].round(
-                    int(numeric_precision)
-                )
-
-                log_entries.append(
-                    f"Numeric columns rounded to {int(numeric_precision)} decimal places."
-                )
-
-        # Save
-        st.session_state.working_df = (
-            working.copy(deep=True)
-        )
-
-        st.session_state.cleaning_log.extend(
-            log_entries
-        )
-
-        st.success(
-            "Cleaning operation completed successfully."
-        )
-
-        st.rerun()
-
-    st.subheader("Current Cleaned Dataset")
-
-    st.dataframe(
-        st.session_state.working_df,
-        use_container_width=True,
-        height=420,
-    )
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.metric(
-            "Current Rows",
-            f"{len(st.session_state.working_df):,}",
-        )
-
-    with c2:
-        st.metric(
-            "Current Columns",
-            f"{len(st.session_state.working_df.columns):,}",
-        )
-
-    with c3:
-        st.metric(
-            "Missing Cells",
-            f"{int(st.session_state.working_df.isna().sum().sum()):,}",
-        )
-
-    st.subheader("Reset Dataset")
-
-    if st.button(
-        "Reset Everything to Original Dataset",
-        use_container_width=True,
-        key="clean_reset",
-    ):
-
-        if reset_dataset():
-            st.success(
-                "All cleaning changes have been removed."
-            )
-            st.rerun()
-
-# =========================================================
-# FEATURES
-# =========================================================
-
-with tabs[5]:
-
-    st.markdown(
-        '<div class="section-title">Feature Analysis</div>',
-        unsafe_allow_html=True,
-    )
-
-    numeric = numeric_columns(df)
-    categorical = categorical_columns(df)
-
-    c1, c2 = st.columns(2)
-
-    with c1:
-
-        st.subheader("Numeric Features")
-
-        if numeric:
-            st.dataframe(
-                pd.DataFrame(
-                    {
-                        "Numeric Feature": numeric
-                    }
-                ),
-                use_container_width=True,
-                hide_index=True,
-            )
-        else:
-            st.info(
-                "No numeric features."
-            )
-
-    with c2:
-
-        st.subheader("Categorical Features")
-
-        if categorical:
-            st.dataframe(
-                pd.DataFrame(
-                    {
-                        "Categorical Feature": categorical
-                    }
-                ),
-                use_container_width=True,
-                hide_index=True,
-            )
-        else:
-            st.info(
-                "No categorical features."
-            )
-
-    st.subheader("Feature Cardinality")
-
-    cardinality = pd.DataFrame(
-        {
-            "Column": df.columns,
-            "Unique Values": [
-                df[col].nunique(
-                    dropna=True
-                )
-                for col in df.columns
-            ],
-            "Unique %": [
-                round(
-                    df[col].nunique(
-                        dropna=True
-                    )
-                    / max(len(df), 1)
-                    * 100,
-                    2,
-                )
-                for col in df.columns
-            ],
-        }
-    ).sort_values(
-        "Unique Values",
-        ascending=False,
-    )
-
-    st.dataframe(
-        cardinality,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    st.subheader("Numeric Feature Distribution")
-
-    if numeric:
-
-        feature = st.selectbox(
-            "Select numeric feature",
-            numeric,
-            key="feature_distribution",
-        )
-
-        series = df[feature].dropna()
-
-        q1 = series.quantile(0.25)
-        q3 = series.quantile(0.75)
-
-        feature_info = pd.DataFrame(
-            {
-                "Metric": [
-                    "Mean",
-                    "Median",
-                    "Minimum",
-                    "Maximum",
-                    "Standard Deviation",
-                    "Skewness",
-                    "Kurtosis",
-                    "Q1",
-                    "Q3",
-                ],
-                "Value": [
-                    series.mean(),
-                    series.median(),
-                    series.min(),
-                    series.max(),
-                    series.std(),
-                    series.skew(),
-                    series.kurt(),
-                    q1,
-                    q3,
-                ],
-            }
-        )
-
-        st.dataframe(
-            feature_info.round(4),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-# =========================================================
-# OUTLIERS
-# =========================================================
-
-with tabs[6]:
-
-    st.markdown(
-        '<div class="section-title">Outlier Analysis</div>',
-        unsafe_allow_html=True,
-    )
-
-    report = outlier_report(df)
-
-    if report.empty:
-
-        st.info(
-            "No numeric columns are available."
-        )
-
-    else:
-
-        st.dataframe(
-            report,
-            use_container_width=True,
-            hide_index=True,
-        )
-
-        selected_outlier_column = st.selectbox(
-            "Select column for detailed outlier view",
-            numeric_columns(df),
-            key="detailed_outlier",
-        )
-
-        series = df[
-            selected_outlier_column
-        ].dropna()
-
-        q1 = series.quantile(0.25)
-        q3 = series.quantile(0.75)
-        iqr = q3 - q1
-
-        lower = q1 - 1.5 * iqr
-        upper = q3 + 1.5 * iqr
-
-        detailed = df[
-            (
-                df[selected_outlier_column]
-                < lower
-            )
-            | (
-                df[selected_outlier_column]
-                > upper
-            )
-        ]
-
-        st.write(
-            f"Lower bound: {lower:.4f}"
-        )
-
-        st.write(
-            f"Upper bound: {upper:.4f}"
-        )
-
-        st.write(
-            f"Outlier rows: {len(detailed):,}"
-        )
-
-        if not detailed.empty:
-            st.dataframe(
-                detailed,
-                use_container_width=True,
-                height=350,
-            )
-
-# =========================================================
-# TARGET ANALYSIS
-# =========================================================
-
-with tabs[7]:
-
-    st.markdown(
-        '<div class="section-title">Target Analysis</div>',
-        unsafe_allow_html=True,
-    )
-
-    target = st.selectbox(
-        "Select target column",
-        df.columns,
-        key="target_analysis_column",
-    )
-
-    target_series = df[target]
-
-    st.subheader("Target Summary")
-
-    target_summary = pd.DataFrame(
-        {
-            "Metric": [
-                "Data Type",
-                "Rows",
-                "Missing",
-                "Unique Values",
-            ],
-            "Value": [
-                str(target_series.dtype),
-                len(target_series),
-                int(target_series.isna().sum()),
-                int(
-                    target_series.nunique(
-                        dropna=True
-                    )
-                ),
-            ],
-        }
-    )
-
-    st.dataframe(
-        target_summary,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    st.subheader("Target Distribution")
-
-    counts = (
-        target_series
-        .value_counts(dropna=False)
-        .head(30)
-    )
-
-    fig, ax = plt.subplots(
-        figsize=(10, 5)
-    )
-
-    sns.barplot(
-        x=counts.values,
-        y=counts.index.astype(str),
-        ax=ax,
-    )
-
-    ax.set_title(
-        f"Distribution of Target: {target}"
-    )
-
-    ax.set_xlabel("Count")
-    ax.set_ylabel(target)
-
-    st.pyplot(fig)
-
-    plt.close(fig)
-
-    if pd.api.types.is_numeric_dtype(
-        target_series
-    ):
-
-        st.subheader(
-            "Target Correlation with Numeric Features"
-        )
-
-        numeric = numeric_columns(df)
-
-        if len(numeric) > 1:
-
-            target_corr = (
-                df[numeric]
-                .corr()[target]
-                .drop(target)
-                .sort_values(
-                    key=lambda x: x.abs(),
-                    ascending=False,
-                )
-                .to_frame(
-                    "Correlation"
-                )
-            )
-
-            st.dataframe(
-                target_corr.round(4),
-                use_container_width=True,
-            )
-
-# =========================================================
-# MODEL TRAINING
-# =========================================================
-
-with tabs[8]:
-
-    st.markdown(
-        '<div class="section-title">Model Training</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-        <div class="info-box">
-            The model pipeline automatically handles missing values,
-            categorical variables and numeric features.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    problem_type = st.radio(
-        "Problem type",
-        [
-            "Classification",
-            "Regression",
-        ],
-        horizontal=True,
-        key="problem_type",
-    )
-
-    target_column = st.selectbox(
-        "Target column",
-        df.columns,
-        key="training_target",
-    )
-
-    if problem_type == "Classification":
-
-        model_name = st.selectbox(
-            "Model",
-            [
-                "Random Forest",
-                "Gradient Boosting",
-                "Logistic Regression",
-            ],
-            key="classification_model",
-        )
-
-    else:
-
-        model_name = st.selectbox(
-            "Model",
-            [
-                "Random Forest",
-                "Gradient Boosting",
-                "Linear Regression",
-                "Ridge",
-            ],
-            key="regression_model",
-        )
-
-    test_size_percent = st.slider(
-        "Test size (%)",
-        10,
-        40,
-        20,
-        key="test_size",
-    )
-
-    scaling = st.checkbox(
-        "Apply feature scaling",
-        value=True,
-        key="training_scaling",
-    )
-
-    if st.button(
-        "Train Model",
-        type="primary",
-        use_container_width=True,
-        key="train_model",
-    ):
-
-        with st.spinner(
-            "Training model..."
+        if pd.api.types.is_numeric_dtype(
+            series
         ):
 
-            result, error = train_model(
-                df=df,
-                target=target_column,
-                problem_type=problem_type,
-                model_name=model_name,
-                test_size=test_size_percent
-                / 100,
-                scaling=scaling,
-            )
-
-        if error:
-
-            st.error(error)
-
-        else:
-
-            st.session_state.model_result = result
-
-            st.success(
-                "Model trained successfully."
-            )
-
-    result = st.session_state.model_result
-
-    if result is not None:
-
-        st.subheader("Model Results")
-
-        y_test = result["y_test"]
-        predictions = result["predictions"]
-
-        if result["problem_type"] == "Classification":
-
-            accuracy = accuracy_score(
-                y_test,
-                predictions,
-            )
-
-            precision = precision_score(
-                y_test,
-                predictions,
-                average="weighted",
-                zero_division=0,
-            )
-
-            recall = recall_score(
-                y_test,
-                predictions,
-                average="weighted",
-                zero_division=0,
-            )
-
-            f1 = f1_score(
-                y_test,
-                predictions,
-                average="weighted",
-                zero_division=0,
-            )
-
-            m1, m2, m3, m4 = st.columns(4)
-
-            with m1:
-                st.metric(
-                    "Accuracy",
-                    f"{accuracy:.4f}",
-                )
-
-            with m2:
-                st.metric(
-                    "Precision",
-                    f"{precision:.4f}",
-                )
-
-            with m3:
-                st.metric(
-                    "Recall",
-                    f"{recall:.4f}",
-                )
-
-            with m4:
-                st.metric(
-                    "F1 Score",
-                    f"{f1:.4f}",
-                )
-
-            st.subheader(
-                "Confusion Matrix"
-            )
-
-            cm = confusion_matrix(
-                y_test,
-                predictions,
-            )
-
-            fig, ax = plt.subplots(
-                figsize=(7, 6)
-            )
-
-            sns.heatmap(
-                cm,
-                annot=True,
-                fmt="d",
-                cmap="Blues",
-                ax=ax,
-            )
-
-            ax.set_xlabel(
-                "Predicted"
-            )
-
-            ax.set_ylabel(
-                "Actual"
-            )
-
-            st.pyplot(fig)
-
-            plt.close(fig)
-
-        else:
-
-            mae = mean_absolute_error(
-                y_test,
-                predictions,
-            )
-
-            rmse = np.sqrt(
-                mean_squared_error(
-                    y_test,
-                    predictions,
-                )
-            )
-
-            r2 = r2_score(
-                y_test,
-                predictions,
-            )
-
-            m1, m2, m3 = st.columns(3)
-
-            with m1:
-                st.metric(
-                    "MAE",
-                    f"{mae:.4f}",
-                )
-
-            with m2:
-                st.metric(
-                    "RMSE",
-                    f"{rmse:.4f}",
-                )
-
-            with m3:
-                st.metric(
-                    "R2 Score",
-                    f"{r2:.4f}",
-                )
-
-            st.subheader(
-                "Actual vs Predicted"
-            )
-
-            prediction_df = pd.DataFrame(
-                {
-                    "Actual": y_test.values,
-                    "Predicted": predictions,
-                    "Error": (
-                        y_test.values
-                        - predictions
-                    ),
-                }
-            )
-
-            st.dataframe(
-                prediction_df.head(100),
-                use_container_width=True,
-            )
-
-            fig, ax = plt.subplots(
-                figsize=(9, 5)
-            )
-
-            ax.scatter(
-                y_test,
-                predictions,
-                alpha=0.7,
-            )
-
-            minimum = min(
-                y_test.min(),
-                predictions.min(),
-            )
-
-            maximum = max(
-                y_test.max(),
-                predictions.max(),
-            )
-
-            ax.plot(
-                [minimum, maximum],
-                [minimum, maximum],
-                linestyle="--",
-            )
-
-            ax.set_xlabel(
-                "Actual"
-            )
-
-            ax.set_ylabel(
-                "Predicted"
-            )
-
-            ax.set_title(
-                "Actual vs Predicted"
-            )
-
-            st.pyplot(fig)
-
-            plt.close(fig)
-
-# =========================================================
-# MODEL COMPARISON
-# =========================================================
-
-with tabs[9]:
-
-    st.markdown(
-        '<div class="section-title">Model Comparison</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.write(
-        "Compare multiple models using the same target and train/test split."
-    )
-
-    comparison_problem = st.radio(
-        "Problem type",
-        [
-            "Classification",
-            "Regression",
-        ],
-        horizontal=True,
-        key="comparison_problem",
-    )
-
-    comparison_target = st.selectbox(
-        "Target",
-        df.columns,
-        key="comparison_target",
-    )
-
-    comparison_test_size = st.slider(
-        "Test size (%)",
-        10,
-        40,
-        20,
-        key="comparison_test",
-    )
-
-    if st.button(
-        "Run Model Comparison",
-        type="primary",
-        use_container_width=True,
-        key="run_comparison",
-    ):
-
-        if comparison_problem == "Classification":
-
-            models = [
-                "Random Forest",
-                "Gradient Boosting",
-                "Logistic Regression",
-            ]
-
-        else:
-
-            models = [
-                "Random Forest",
-                "Gradient Boosting",
-                "Linear Regression",
-                "Ridge",
-            ]
-
-        comparison_rows = []
-
-        progress = st.progress(0)
-
-        for index, model in enumerate(models):
-
-            result, error = train_model(
-                df=df,
-                target=comparison_target,
-                problem_type=comparison_problem,
-                model_name=model,
-                test_size=comparison_test_size
-                / 100,
-                scaling=True,
-            )
-
-            if result is not None:
-
-                y_test = result["y_test"]
-                predictions = result[
-                    "predictions"
-                ]
-
-                if (
-                    comparison_problem
-                    == "Classification"
-                ):
-
-                    comparison_rows.append(
-                        {
-                            "Model": model,
-                            "Accuracy": round(
-                                accuracy_score(
-                                    y_test,
-                                    predictions,
-                                ),
-                                4,
-                            ),
-                            "Precision": round(
-                                precision_score(
-                                    y_test,
-                                    predictions,
-                                    average="weighted",
-                                    zero_division=0,
-                                ),
-                                4,
-                            ),
-                            "Recall": round(
-                                recall_score(
-                                    y_test,
-                                    predictions,
-                                    average="weighted",
-                                    zero_division=0,
-                                ),
-                                4,
-                            ),
-                            "F1": round(
-                                f1_score(
-                                    y_test,
-                                    predictions,
-                                    average="weighted",
-                                    zero_division=0,
-                                ),
-                                4,
-                            ),
-                        }
+            if np.isinf(series).any():
+                issues.append("infinite")
+
+            if len(series.dropna()) >= 4:
+
+                q1 = series.quantile(.25)
+                q3 = series.quantile(.75)
+
+                iqr = q3 - q1
+
+                if iqr != 0:
+
+                    outliers = int(
+                        (
+                            (
+                                series <
+                                q1 - 1.5 * iqr
+                            )
+                            |
+                            (
+                                series >
+                                q3 + 1.5 * iqr
+                            )
+                        ).sum()
                     )
 
                 else:
 
-                    comparison_rows.append(
-                        {
-                            "Model": model,
-                            "MAE": round(
-                                mean_absolute_error(
-                                    y_test,
-                                    predictions,
-                                ),
-                                4,
-                            ),
-                            "RMSE": round(
-                                np.sqrt(
-                                    mean_squared_error(
-                                        y_test,
-                                        predictions,
-                                    )
-                                ),
-                                4,
-                            ),
-                            "R2": round(
-                                r2_score(
-                                    y_test,
-                                    predictions,
-                                ),
-                                4,
-                            ),
-                        }
+                    outliers = 0
+
+            else:
+
+                outliers = 0
+
+        else:
+
+            outliers = 0
+
+        high_cardinality = (
+            series.nunique(
+                dropna=True
+            )
+            >
+            max(
+                50,
+                int(len(df) * .5)
+            )
+            and
+            not pd.api.types.is_numeric_dtype(
+                series
+            )
+        )
+
+        if high_cardinality:
+
+            issues.append(
+                "high-cardinality"
+            )
+
+        rows.append([
+            column,
+            str(series.dtype),
+            int(series.isna().sum()),
+            int(
+                series.nunique(
+                    dropna=True
+                )
+            ),
+            outliers,
+            (
+                ", ".join(issues)
+                if issues
+                else "No major issue"
+            )
+        ])
+
+    report = pd.DataFrame(
+        rows,
+        columns=[
+            "Column",
+            "Type",
+            "Missing",
+            "Unique",
+            "Outliers",
+            "Detected Issues"
+        ]
+    )
+
+    APP["last_quality"] = report
+
+    score = quality_score(df)
+
+    healthcare = healthcare_validation(
+        df
+    )
+
+    duplicate_columns = []
+
+    seen = {}
+
+    for index, column in enumerate(
+        df.columns
+    ):
+
+        key = str(
+            column
+        ).strip().lower()
+
+        if key in seen:
+
+            duplicate_columns.append(
+                str(column)
+            )
+
+        else:
+
+            seen[key] = index
+
+    html = f"""
+    <div class="quality-box">
+
+        <div class="quality-number">
+            {score}/100
+        </div>
+
+        <div>
+            <b>Data Quality Score</b>
+            <br>
+            Dashboard heuristic based on
+            completeness, consistency,
+            validity and uniqueness.
+            <br>
+            Duplicate column names detected:
+            {len(duplicate_columns)}
+        </div>
+
+    </div>
+    """
+
+    return (
+        report,
+        html,
+        healthcare,
+        unique_report(df)
+    )
+
+
+# ============================================================
+# CLEANING OPERATIONS
+# ============================================================
+
+def apply_clean_operation(
+    df,
+    operation,
+    apply_to,
+    column,
+    constant,
+    replace_from,
+    replace_to,
+    threshold,
+    z_threshold,
+    dry_run=False
+):
+
+    work = df.copy()
+
+    if apply_to == "Entire Dataset":
+
+        columns = work.columns.tolist()
+
+    else:
+
+        columns = (
+            [column]
+            if column in work.columns
+            else []
+        )
+
+    if operation == "Drop rows":
+
+        before = len(work)
+
+        work = (
+            work
+            .dropna()
+            .reset_index(drop=True)
+        )
+
+        return (
+            work,
+            f"Dropped "
+            f"{before - len(work):,} "
+            f"rows containing missing values."
+        )
+
+    if operation == "Drop columns":
+
+        targets = (
+            columns
+            or work.columns.tolist()
+        )
+
+        work = work.drop(
+            columns=targets,
+            errors="ignore"
+        )
+
+        return (
+            work,
+            f"Dropped {len(targets)} column(s)."
+        )
+
+    if operation == "Drop columns above selected %":
+
+        percentage = float(
+            threshold or 50
+        )
+
+        missing_percentage = (
+            work.isna().mean() * 100
+        )
+
+        drop_columns = (
+            missing_percentage[
+                missing_percentage >= percentage
+            ]
+            .index
+            .tolist()
+        )
+
+        work = work.drop(
+            columns=drop_columns,
+            errors="ignore"
+        )
+
+        return (
+            work,
+            f"Dropped "
+            f"{len(drop_columns)} column(s) "
+            f"with missingness >= "
+            f"{percentage:g}%."
+        )
+
+    if operation == "Mean imputation":
+
+        targets = (
+            columns
+            or numeric_cols(work)
+        )
+
+        for col in targets:
+
+            if (
+                col in work.columns
+                and
+                pd.api.types.is_numeric_dtype(
+                    work[col]
+                )
+            ):
+
+                work[col] = (
+                    work[col]
+                    .fillna(
+                        work[col].mean()
+                    )
+                )
+
+        return (
+            work,
+            f"Mean imputation applied to "
+            f"{len(targets)} column(s)."
+        )
+
+    if operation == "Median imputation":
+
+        targets = (
+            columns
+            or numeric_cols(work)
+        )
+
+        for col in targets:
+
+            if (
+                col in work.columns
+                and
+                pd.api.types.is_numeric_dtype(
+                    work[col]
+                )
+            ):
+
+                work[col] = (
+                    work[col]
+                    .fillna(
+                        work[col].median()
+                    )
+                )
+
+        return (
+            work,
+            f"Median imputation applied to "
+            f"{len(targets)} column(s)."
+        )
+
+    if operation == "Mode imputation":
+
+        targets = (
+            columns
+            or
+            work.columns.tolist()
+        )
+
+        for col in targets:
+
+            if col in work.columns:
+
+                mode = work[col].mode(
+                    dropna=True
+                )
+
+                if not mode.empty:
+
+                    work[col] = (
+                        work[col]
+                        .fillna(
+                            mode.iloc[0]
+                        )
                     )
 
-            progress.progress(
-                (index + 1) / len(models)
+        return (
+            work,
+            f"Mode imputation applied to "
+            f"{len(targets)} column(s)."
+        )
+
+    if operation == "Constant value":
+
+        targets = (
+            columns
+            or
+            work.columns.tolist()
+        )
+
+        value = (
+            constant
+            if constant != ""
+            else "0"
+        )
+
+        for col in targets:
+
+            if col not in work.columns:
+                continue
+
+            try:
+
+                if pd.api.types.is_numeric_dtype(
+                    work[col]
+                ):
+
+                    work[col] = (
+                        work[col]
+                        .fillna(
+                            float(value)
+                        )
+                    )
+
+                else:
+
+                    work[col] = (
+                        work[col]
+                        .fillna(
+                            str(value)
+                        )
+                    )
+
+            except Exception:
+
+                work[col] = (
+                    work[col]
+                    .fillna(
+                        str(value)
+                    )
+                )
+
+        return (
+            work,
+            f"Missing values replaced "
+            f"with {value!r}."
+        )
+
+    if operation == "Forward fill":
+
+        targets = (
+            columns
+            or
+            work.columns.tolist()
+        )
+
+        for col in targets:
+
+            if col in work.columns:
+
+                work[col] = (
+                    work[col]
+                    .ffill()
+                )
+
+        return (
+            work,
+            f"Forward fill applied to "
+            f"{len(targets)} column(s)."
+        )
+
+    if operation == "Backward fill":
+
+        targets = (
+            columns
+            or
+            work.columns.tolist()
+        )
+
+        for col in targets:
+
+            if col in work.columns:
+
+                work[col] = (
+                    work[col]
+                    .bfill()
+                )
+
+        return (
+            work,
+            f"Backward fill applied to "
+            f"{len(targets)} column(s)."
+        )
+
+    if operation == "Interpolation":
+
+        targets = (
+            columns
+            or
+            numeric_cols(work)
+        )
+
+        for col in targets:
+
+            if (
+                col in work.columns
+                and
+                pd.api.types.is_numeric_dtype(
+                    work[col]
+                )
+            ):
+
+                work[col] = (
+                    work[col]
+                    .interpolate(
+                        limit_direction="both"
+                    )
+                )
+
+        return (
+            work,
+            f"Interpolation applied to "
+            f"{len(targets)} numeric column(s)."
+        )
+
+    if operation == "Remove exact duplicates":
+
+        before = len(work)
+
+        work = (
+            work
+            .drop_duplicates()
+            .reset_index(drop=True)
+        )
+
+        return (
+            work,
+            f"Removed "
+            f"{before - len(work):,} "
+            f"duplicate row(s)."
+        )
+
+    if operation in [
+        "Strip whitespace",
+        "Lowercase",
+        "Uppercase",
+        "Title case"
+    ]:
+
+        targets = (
+            columns
+            or
+            categorical_cols(work)
+        )
+
+        for col in targets:
+
+            if col not in work.columns:
+                continue
+
+            work[col] = (
+                work[col]
+                .astype("string")
+                .str.strip()
             )
 
-        if comparison_rows:
+            if operation == "Lowercase":
 
-            comparison_df = pd.DataFrame(
-                comparison_rows
+                work[col] = (
+                    work[col]
+                    .str.lower()
+                )
+
+            elif operation == "Uppercase":
+
+                work[col] = (
+                    work[col]
+                    .str.upper()
+                )
+
+            elif operation == "Title case":
+
+                work[col] = (
+                    work[col]
+                    .str.title()
+                )
+
+        return (
+            work,
+            f"{operation} applied to "
+            f"{len(targets)} column(s)."
+        )
+
+    if operation == "Replace values":
+
+        targets = (
+            columns
+            or
+            work.columns.tolist()
+        )
+
+        for col in targets:
+
+            if col in work.columns:
+
+                work[col] = (
+                    work[col]
+                    .replace(
+                        str(replace_from),
+                        replace_to
+                    )
+                )
+
+                work[col] = (
+                    work[col]
+                    .replace(
+                        replace_from,
+                        replace_to
+                    )
+                )
+
+        return (
+            work,
+            f"Replaced "
+            f"{replace_from!r} "
+            f"with {replace_to!r}."
+        )
+
+    if operation == "Convert numeric":
+
+        targets = (
+            columns
+            or
+            work.columns.tolist()
+        )
+
+        for col in targets:
+
+            if col in work.columns:
+
+                work[col] = pd.to_numeric(
+                    work[col],
+                    errors="coerce"
+                )
+
+        return (
+            work,
+            f"Converted "
+            f"{len(targets)} column(s) "
+            f"to numeric where possible."
+        )
+
+    if operation == "Convert category":
+
+        targets = (
+            columns
+            or
+            categorical_cols(work)
+        )
+
+        for col in targets:
+
+            if col in work.columns:
+
+                work[col] = (
+                    work[col]
+                    .astype("category")
+                )
+
+        return (
+            work,
+            f"Converted "
+            f"{len(targets)} column(s) "
+            f"to category."
+        )
+
+    if operation == "Convert date":
+
+        targets = (
+            columns
+            or
+            work.columns.tolist()
+        )
+
+        for col in targets:
+
+            if col in work.columns:
+
+                work[col] = pd.to_datetime(
+                    work[col],
+                    errors="coerce"
+                )
+
+        return (
+            work,
+            f"Converted "
+            f"{len(targets)} column(s) "
+            f"to date/time."
+        )
+
+    if operation == "Replace negative numeric values":
+
+        targets = (
+            columns
+            or
+            numeric_cols(work)
+        )
+
+        count = 0
+
+        for col in targets:
+
+            if (
+                col in work.columns
+                and
+                pd.api.types.is_numeric_dtype(
+                    work[col]
+                )
+            ):
+
+                mask = work[col] < 0
+
+                count += int(
+                    mask.sum()
+                )
+
+                work.loc[
+                    mask,
+                    col
+                ] = np.nan
+
+        return (
+            work,
+            f"Replaced "
+            f"{count:,} negative numeric "
+            f"value(s) with missing values."
+        )
+
+    if operation == "Replace infinite values":
+
+        targets = (
+            columns
+            or
+            numeric_cols(work)
+        )
+
+        count = 0
+
+        for col in targets:
+
+            if (
+                col in work.columns
+                and
+                pd.api.types.is_numeric_dtype(
+                    work[col]
+                )
+            ):
+
+                count += int(
+                    np.isinf(
+                        work[col]
+                    ).sum()
+                )
+
+                work[col] = (
+                    work[col]
+                    .replace(
+                        [np.inf, -np.inf],
+                        np.nan
+                    )
+                )
+
+        return (
+            work,
+            f"Replaced "
+            f"{count:,} infinite value(s) "
+            f"with missing values."
+        )
+
+    if operation == "Replace empty strings":
+
+        targets = (
+            columns
+            or
+            work.columns.tolist()
+        )
+
+        count = 0
+
+        for col in targets:
+
+            if col in work.columns:
+
+                mask = (
+                    work[col]
+                    .astype(str)
+                    .str.strip()
+                    .eq("")
+                )
+
+                count += int(
+                    mask.sum()
+                )
+
+                work.loc[
+                    mask,
+                    col
+                ] = np.nan
+
+        return (
+            work,
+            f"Replaced "
+            f"{count:,} empty string(s) "
+            f"with missing values."
+        )
+
+    if operation == "Replace common null strings":
+
+        targets = (
+            columns
+            or
+            work.columns.tolist()
+        )
+
+        null_values = {
+            "na",
+            "n/a",
+            "null",
+            "none",
+            "nan",
+            "missing",
+            "unknown",
+            "-",
+            "?"
+        }
+
+        count = 0
+
+        for col in targets:
+
+            if col in work.columns:
+
+                mask = (
+                    work[col]
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                    .isin(null_values)
+                )
+
+                count += int(
+                    mask.sum()
+                )
+
+                work.loc[
+                    mask,
+                    col
+                ] = np.nan
+
+        return (
+            work,
+            f"Replaced "
+            f"{count:,} common null marker(s) "
+            f"with missing values."
+        )
+
+    if operation in [
+        "IQR remove",
+        "IQR cap"
+    ]:
+
+        targets = (
+            columns
+            or
+            numeric_cols(work)
+        )
+
+        count = 0
+
+        keep = pd.Series(
+            True,
+            index=work.index
+        )
+
+        for col in targets:
+
+            if (
+                col not in work.columns
+                or
+                not pd.api.types.is_numeric_dtype(
+                    work[col]
+                )
+            ):
+                continue
+
+            series = work[col]
+
+            q1 = series.quantile(.25)
+            q3 = series.quantile(.75)
+
+            iqr = q3 - q1
+
+            if (
+                iqr == 0
+                or
+                pd.isna(iqr)
+            ):
+                continue
+
+            lower = q1 - 1.5 * iqr
+            upper = q3 + 1.5 * iqr
+
+            mask = (
+                (series < lower)
+                |
+                (series > upper)
             )
 
-            st.dataframe(
-                comparison_df,
-                use_container_width=True,
-                hide_index=True,
+            count += int(
+                mask.sum()
             )
 
-            if comparison_problem == "Classification":
+            if operation == "IQR remove":
 
-                metric = st.selectbox(
-                    "Comparison metric",
-                    [
-                        "Accuracy",
-                        "Precision",
-                        "Recall",
-                        "F1",
-                    ],
+                keep &= (
+                    ~mask.fillna(False)
                 )
 
             else:
 
-                metric = st.selectbox(
-                    "Comparison metric",
-                    [
-                        "MAE",
-                        "RMSE",
-                        "R2",
-                    ],
+                work[col] = series.clip(
+                    lower,
+                    upper
                 )
 
-            fig, ax = plt.subplots(
-                figsize=(10, 5)
+        if operation == "IQR remove":
+
+            work = (
+                work.loc[keep]
+                .reset_index(drop=True)
             )
 
-            sns.barplot(
-                data=comparison_df,
-                x="Model",
-                y=metric,
-                ax=ax,
+        return (
+            work,
+            f"{operation} affected "
+            f"{count:,} outlier value(s)."
+        )
+
+    if operation in [
+        "Z-score remove",
+        "Z-score cap"
+    ]:
+
+        targets = (
+            columns
+            or
+            numeric_cols(work)
+        )
+
+        threshold_value = float(
+            z_threshold or 3
+        )
+
+        count = 0
+
+        keep = pd.Series(
+            True,
+            index=work.index
+        )
+
+        for col in targets:
+
+            if (
+                col not in work.columns
+                or
+                not pd.api.types.is_numeric_dtype(
+                    work[col]
+                )
+            ):
+                continue
+
+            series = work[col]
+
+            standard_deviation = (
+                series.std()
             )
 
-            ax.set_title(
-                f"Model Comparison - {metric}"
+            if (
+                standard_deviation == 0
+                or
+                pd.isna(
+                    standard_deviation
+                )
+            ):
+                continue
+
+            zscore = (
+                (
+                    series -
+                    series.mean()
+                )
+                /
+                standard_deviation
+            ).abs()
+
+            mask = (
+                zscore >
+                threshold_value
             )
 
-            ax.tick_params(
-                axis="x",
-                rotation=20,
+            count += int(
+                mask.sum()
             )
 
-            st.pyplot(fig)
+            if operation == "Z-score remove":
 
-            plt.close(fig)
+                keep &= (
+                    ~mask.fillna(False)
+                )
+
+            else:
+
+                mean = series.mean()
+
+                work[col] = series.clip(
+                    mean -
+                    threshold_value *
+                    standard_deviation,
+
+                    mean +
+                    threshold_value *
+                    standard_deviation
+                )
+
+        if operation == "Z-score remove":
+
+            work = (
+                work.loc[keep]
+                .reset_index(drop=True)
+            )
+
+        return (
+            work,
+            f"{operation} affected "
+            f"{count:,} value(s) using "
+            f"z={threshold_value:g}."
+        )
+
+    return (
+        work,
+        "No operation selected."
+    )
+
+
+# ============================================================
+# CLEANING PREVIEW
+# ============================================================
+
+def cleaning_before_preview(
+    operation,
+    apply_to,
+    column,
+    constant,
+    replace_from,
+    replace_to,
+    threshold,
+    z_threshold
+):
+
+    try:
+
+        df = APP["processed_df"]
+
+        if df is None:
+
+            return (
+                pd.DataFrame(),
+                pd.DataFrame(),
+                "Load a dataset first.",
+                pd.DataFrame()
+            )
+
+        before = df.copy()
+
+        after, detail = apply_clean_operation(
+            before,
+            operation,
+            apply_to,
+            column,
+            constant,
+            replace_from,
+            replace_to,
+            threshold,
+            z_threshold,
+            dry_run=True
+        )
+
+        comparison = comparison_df(
+            before,
+            after
+        )
+
+        return (
+            before.head(50),
+            after.head(50),
+            detail,
+            comparison
+        )
+
+    except Exception as error:
+
+        return (
+            pd.DataFrame(),
+            pd.DataFrame(),
+            f"Preview error: {error}",
+            pd.DataFrame()
+        )
+
+
+def apply_cleaning(
+    operation,
+    apply_to,
+    column,
+    constant,
+    replace_from,
+    replace_to,
+    threshold,
+    z_threshold
+):
+
+    try:
+
+        if APP["processed_df"] is None:
+
+            return (
+                pd.DataFrame(),
+                "<div class='notice'>Load a dataset first.</div>",
+                pd.DataFrame(),
+                pd.DataFrame(
+                    APP["cleaning_history"]
+                ),
+                "No change."
+            )
+
+        before = (
+            APP["processed_df"]
+            .copy()
+        )
+
+        after, detail = apply_clean_operation(
+            before,
+            operation,
+            apply_to,
+            column,
+            constant,
+            replace_from,
+            replace_to,
+            threshold,
+            z_threshold
+        )
+
+        APP["processed_df"] = (
+            after.copy()
+        )
+
+        comparison = comparison_df(
+            before,
+            after
+        )
+
+        step = (
+            len(
+                APP["cleaning_history"]
+            ) + 1
+        )
+
+        APP["cleaning_history"].append({
+
+            "Step": step,
+
+            "Operation":
+                operation,
+
+            "Column":
+                (
+                    column
+                    if apply_to ==
+                    "Selected Column"
+                    else
+                    "Entire Dataset"
+                ),
+
+            "Before":
+                (
+                    f"{len(before):,} rows / "
+                    f"{total_missing(before):,} missing"
+                ),
+
+            "After":
+                (
+                    f"{len(after):,} rows / "
+                    f"{total_missing(after):,} missing"
+                ),
+
+            "Status":
+                "Applied"
+        })
+
+        history = pd.DataFrame(
+            APP["cleaning_history"]
+        )
+
+        status = (
+            f"Applied: {detail}"
+        )
+
+        return (
+            after.head(50),
+            summary_html(after),
+            comparison,
+            history,
+            status
+        )
+
+    except Exception as error:
+
+        return (
+            pd.DataFrame(),
+            "<div class='error'>Cleaning failed.</div>",
+            pd.DataFrame(),
+            pd.DataFrame(
+                APP["cleaning_history"]
+            ),
+            f"Cleaning failed: {error}"
+        )
+
+
+def reset_cleaning():
+
+    try:
+
+        if APP["original_df"] is None:
+
+            return (
+                pd.DataFrame(),
+                "<div class='notice'>Nothing to reset.</div>",
+                pd.DataFrame(),
+                pd.DataFrame(),
+                "No original dataset loaded."
+            )
+
+        APP["processed_df"] = (
+            APP["original_df"].copy()
+        )
+
+        APP["cleaning_history"] = []
+
+        return (
+            APP["processed_df"].head(50),
+            summary_html(
+                APP["processed_df"]
+            ),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            "Processed dataset restored to the original dataset."
+        )
+
+    except Exception as error:
+
+        return (
+            pd.DataFrame(),
+            "<div class='error'>Reset failed.</div>",
+            pd.DataFrame(),
+            pd.DataFrame(),
+            f"Reset failed: {error}"
+        )
+
+
+# ============================================================
+# CLEANING UI STATE
+# ============================================================
+
+def clean_ui_state(
+    operation,
+    apply_to
+):
+
+    df = APP["processed_df"]
+
+    columns = (
+        df.columns.tolist()
+        if df is not None
+        else []
+    )
+
+    numerical = (
+        numeric_cols(df)
+        if df is not None
+        else []
+    )
+
+    needs_column = operation not in [
+        "Drop rows",
+        "Drop columns",
+        "Drop columns above selected %",
+        "Remove exact duplicates",
+        "Replace negative numeric values",
+        "Replace infinite values",
+        "Replace empty strings",
+        "Replace common null strings"
+    ]
+
+    if operation in [
+        "Mean imputation",
+        "Median imputation",
+        "IQR remove",
+        "IQR cap",
+        "Z-score remove",
+        "Z-score cap",
+        "Convert numeric"
+    ]:
+
+        choices = numerical
+
+    else:
+
+        choices = columns
+
+    return (
+        gr.update(
+            choices=choices,
+            visible=(
+                apply_to ==
+                "Selected Column"
+                or
+                needs_column
+            )
+        ),
+
+        gr.update(
+            visible=(
+                operation ==
+                "Constant value"
+            )
+        ),
+
+        gr.update(
+            visible=(
+                operation ==
+                "Replace values"
+            )
+        ),
+
+        gr.update(
+            visible=(
+                operation ==
+                "Replace values"
+            )
+        ),
+
+        gr.update(
+            visible=(
+                operation ==
+                "Drop columns above selected %"
+            )
+        ),
+
+        gr.update(
+            visible=(
+                "Z-score"
+                in operation
+            )
+        )
+    )
+
+
+# ============================================================
+# OUTLIERS
+# ============================================================
+
+def outlier_report(
+    method="IQR",
+    z=3
+):
+
+    df, error = ensure_df()
+
+    if error:
+
+        return (
+            pd.DataFrame(),
+            error
+        )
+
+    rows = []
+
+    for column in numeric_cols(df):
+
+        series = pd.to_numeric(
+            df[column],
+            errors="coerce"
+        )
+
+        if method == "IQR":
+
+            q1 = series.quantile(.25)
+            q3 = series.quantile(.75)
+
+            iqr = q3 - q1
+
+            if (
+                iqr == 0
+                or
+                pd.isna(iqr)
+            ):
+
+                count = 0
+                lower = np.nan
+                upper = np.nan
+
+            else:
+
+                lower = (
+                    q1 -
+                    1.5 * iqr
+                )
+
+                upper = (
+                    q3 +
+                    1.5 * iqr
+                )
+
+                count = int(
+                    (
+                        (series < lower)
+                        |
+                        (series > upper)
+                    ).sum()
+                )
 
         else:
 
-            st.error(
-                "No model could be trained with the current dataset."
+            standard_deviation = (
+                series.std()
             )
 
-# =========================================================
-# DOWNLOAD
-# =========================================================
+            if (
+                standard_deviation == 0
+                or
+                pd.isna(
+                    standard_deviation
+                )
+            ):
 
-with tabs[10]:
+                count = 0
+                lower = np.nan
+                upper = np.nan
 
-    st.markdown(
-        '<div class="section-title">Download Dataset</div>',
-        unsafe_allow_html=True,
+            else:
+
+                threshold = float(z)
+
+                lower = (
+                    series.mean()
+                    -
+                    threshold *
+                    standard_deviation
+                )
+
+                upper = (
+                    series.mean()
+                    +
+                    threshold *
+                    standard_deviation
+                )
+
+                count = int(
+                    (
+                        (
+                            (
+                                series -
+                                series.mean()
+                            )
+                            /
+                            standard_deviation
+                        ).abs()
+                        >
+                        threshold
+                    ).sum()
+                )
+
+        rows.append([
+            column,
+            count,
+            lower,
+            upper
+        ])
+
+    result = pd.DataFrame(
+        rows,
+        columns=[
+            "Column",
+            "Outliers",
+            "Lower Bound",
+            "Upper Bound"
+        ]
     )
 
-    st.markdown(
-        """
-        <div class="info-box">
-            Download the current dataset after all applied cleaning operations.
-            The downloaded file contains the current version, not the original version.
-        </div>
-        """,
-        unsafe_allow_html=True,
+    result = result.sort_values(
+        "Outliers",
+        ascending=False
     )
 
-    download_df = st.session_state.working_df
+    APP["last_outliers"] = result
 
-    st.subheader("Current Dataset")
-
-    st.write(
-        f"Rows: {len(download_df):,}"
+    total = (
+        int(result["Outliers"].sum())
+        if not result.empty
+        else 0
     )
 
-    st.write(
-        f"Columns: {len(download_df.columns):,}"
+    return (
+        result,
+        f"{total:,} total outlier observations using {method}."
     )
 
-    st.dataframe(
-        download_df.head(50),
-        use_container_width=True,
-        height=350,
+
+# ============================================================
+# EDA CONTROLS
+# ============================================================
+
+def graph_controls(graph):
+
+    x_visible = graph not in [
+        "Correlation",
+        "Covariance",
+        "Missing"
+    ]
+
+    y_visible = graph in [
+        "Scatter",
+        "Line",
+        "Area",
+        "Bar",
+        "Count",
+        "Time Series",
+        "3D Scatter"
+    ]
+
+    z_visible = (
+        graph ==
+        "3D Scatter"
     )
 
-    st.subheader("Choose Download Format")
+    hue_visible = graph in [
+        "Scatter",
+        "Line",
+        "Area",
+        "Bar",
+        "Count",
+        "Box",
+        "Violin",
+        "KDE",
+        "Time Series"
+    ]
 
-    download_format = st.radio(
-        "File format",
-        [
-            "CSV",
-            "Excel XLSX",
-        ],
-        horizontal=True,
-        key="download_format",
-    )
+    return (
+        gr.update(
+            visible=x_visible
+        ),
 
-    base_name = (
-        st.session_state.filename
-        .rsplit(".", 1)[0]
-        if st.session_state.filename
-        else "cleaned_dataset"
-    )
+        gr.update(
+            visible=y_visible
+        ),
 
-    if download_format == "CSV":
+        gr.update(
+            visible=z_visible
+        ),
 
-        st.download_button(
-            label="Download Cleaned CSV",
-            data=create_csv_bytes(
-                download_df
-            ),
-            file_name=f"{base_name}_cleaned.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="download_csv",
+        gr.update(
+            visible=hue_visible
         )
+    )
+
+
+# ============================================================
+# EDA PLOTTING
+# ============================================================
+
+def plot_eda(
+    graph,
+    x,
+    y,
+    z,
+    hue
+):
+
+    try:
+
+        df, error = ensure_df()
+
+        if error:
+
+            return (
+                None,
+                error
+            )
+
+        figure = None
+
+        if graph == "Histogram":
+
+            if x not in df.columns:
+
+                raise ValueError(
+                    "Select a column."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            sns.histplot(
+                df[x].dropna(),
+                kde=False,
+                ax=axis
+            )
+
+            axis.set_title(
+                f"Histogram: {x}"
+            )
+
+        elif graph == "KDE":
+
+            if (
+                x not in df.columns
+                or
+                not pd.api.types.is_numeric_dtype(
+                    df[x]
+                )
+            ):
+
+                raise ValueError(
+                    "KDE requires a numerical X column."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            sns.kdeplot(
+                df[x].dropna(),
+                fill=True,
+                ax=axis
+            )
+
+            axis.set_title(
+                f"KDE: {x}"
+            )
+
+        elif graph == "Box":
+
+            if x not in df.columns:
+
+                raise ValueError(
+                    "Select X."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            sns.boxplot(
+                data=df,
+                y=x,
+                hue=(
+                    hue
+                    if hue in df.columns
+                    else None
+                ),
+                ax=axis
+            )
+
+            axis.set_title(
+                f"Box Plot: {x}"
+            )
+
+        elif graph == "Violin":
+
+            if x not in df.columns:
+
+                raise ValueError(
+                    "Select X."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            sns.violinplot(
+                data=df,
+                y=x,
+                hue=(
+                    hue
+                    if hue in df.columns
+                    else None
+                ),
+                ax=axis
+            )
+
+            axis.set_title(
+                f"Violin Plot: {x}"
+            )
+
+        elif graph == "Count":
+
+            if x not in df.columns:
+
+                raise ValueError(
+                    "Select a categorical column."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            order = (
+                df[x]
+                .value_counts()
+                .head(20)
+                .index
+            )
+
+            sns.countplot(
+                data=df,
+                x=x,
+                order=order,
+                ax=axis
+            )
+
+            axis.tick_params(
+                axis="x",
+                rotation=45
+            )
+
+            axis.set_title(
+                f"Count Plot: {x}"
+            )
+
+        elif graph == "Bar":
+
+            if (
+                x not in df.columns
+                or
+                y not in df.columns
+            ):
+
+                raise ValueError(
+                    "Bar chart requires X and Y."
+                )
+
+            grouped = (
+                df
+                .groupby(
+                    x,
+                    dropna=False
+                )[y]
+                .mean()
+                .sort_values(
+                    ascending=False
+                )
+                .head(20)
+            )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            grouped.plot(
+                kind="bar",
+                ax=axis
+            )
+
+            axis.set_title(
+                f"Bar Chart: mean {y} by {x}"
+            )
+
+            axis.tick_params(
+                axis="x",
+                rotation=45
+            )
+
+        elif graph == "Pie":
+
+            if x not in df.columns:
+
+                raise ValueError(
+                    "Select a categorical column."
+                )
+
+            values = (
+                df[x]
+                .value_counts()
+                .head(10)
+            )
+
+            figure, axis = plt.subplots(
+                figsize=(7, 7)
+            )
+
+            axis.pie(
+                values.values,
+                labels=values.index.astype(str),
+                autopct="%1.1f%%"
+            )
+
+            axis.set_title(
+                f"Pie Chart: {x}"
+            )
+
+        elif graph == "Scatter":
+
+            if (
+                x not in df.columns
+                or
+                y not in df.columns
+            ):
+
+                raise ValueError(
+                    "Scatter requires X and Y."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            sns.scatterplot(
+                data=df,
+                x=x,
+                y=y,
+                hue=(
+                    hue
+                    if hue in df.columns
+                    else None
+                ),
+                ax=axis
+            )
+
+            axis.set_title(
+                f"Scatter: {x} vs {y}"
+            )
+
+        elif graph == "Time Series":
+
+            if (
+                x not in df.columns
+                or
+                y not in df.columns
+            ):
+
+                raise ValueError(
+                    "Time Series requires a date/time X column and numerical Y column."
+                )
+
+            data = df[
+                [x, y]
+            ].copy()
+
+            data[x] = pd.to_datetime(
+                data[x],
+                errors="coerce"
+            )
+
+            data[y] = pd.to_numeric(
+                data[y],
+                errors="coerce"
+            )
+
+            data = (
+                data
+                .dropna()
+                .sort_values(x)
+            )
+
+            if data.empty:
+
+                raise ValueError(
+                    "No valid date/numerical rows were found."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            axis.plot(
+                data[x],
+                data[y]
+            )
+
+            axis.set_title(
+                f"Time Series: {y}"
+            )
+
+            axis.set_xlabel(x)
+            axis.set_ylabel(y)
+
+            figure.autofmt_xdate()
+
+        elif graph in [
+            "Line",
+            "Area"
+        ]:
+
+            if (
+                x not in df.columns
+                or
+                y not in df.columns
+            ):
+
+                raise ValueError(
+                    f"{graph} requires X and Y."
+                )
+
+            data = (
+                df[[x, y]]
+                .dropna()
+                .sort_values(x)
+            )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            if graph == "Line":
+
+                axis.plot(
+                    data[x],
+                    data[y]
+                )
+
+            else:
+
+                axis.fill_between(
+                    np.arange(
+                        len(data)
+                    ),
+                    data[y].to_numpy(),
+                    alpha=.35
+                )
+
+                axis.set_xlabel(
+                    f"{x} (ordered)"
+                )
+
+            axis.set_ylabel(y)
+
+            axis.set_title(
+                f"{graph}: {y} by {x}"
+            )
+
+            if len(data) > 30:
+
+                axis.tick_params(
+                    axis="x",
+                    rotation=45
+                )
+
+        elif graph == "Correlation":
+
+            columns = numeric_cols(df)
+
+            if len(columns) < 2:
+
+                raise ValueError(
+                    "Need at least two numerical columns."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(9, 7)
+            )
+
+            sns.heatmap(
+                df[columns].corr(),
+                annot=False,
+                cmap="coolwarm",
+                center=0,
+                ax=axis
+            )
+
+            axis.set_title(
+                "Pearson Correlation Heatmap"
+            )
+
+        elif graph == "Covariance":
+
+            columns = numeric_cols(df)
+
+            if len(columns) < 2:
+
+                raise ValueError(
+                    "Need at least two numerical columns."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(9, 7)
+            )
+
+            sns.heatmap(
+                df[columns].cov(),
+                annot=False,
+                cmap="viridis",
+                ax=axis
+            )
+
+            axis.set_title(
+                "Covariance Heatmap"
+            )
+
+        elif graph == "Pair Plot":
+
+            columns = numeric_cols(df)[:6]
+
+            if len(columns) < 2:
+
+                raise ValueError(
+                    "Need at least two numerical columns."
+                )
+
+            pair = sns.pairplot(
+                df[columns]
+                .dropna()
+                .head(500)
+            )
+
+            pair.fig.suptitle(
+                "Pair Plot",
+                y=1.02
+            )
+
+            figure = pair.fig
+
+        elif graph == "Q-Q":
+
+            if (
+                x not in df.columns
+                or
+                not pd.api.types.is_numeric_dtype(
+                    df[x]
+                )
+            ):
+
+                raise ValueError(
+                    "Q-Q plot requires numerical X."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(7, 5)
+            )
+
+            stats.probplot(
+                df[x].dropna(),
+                dist="norm",
+                plot=axis
+            )
+
+            axis.set_title(
+                f"Q-Q Plot: {x}"
+            )
+
+        elif graph == "ECDF":
+
+            if (
+                x not in df.columns
+                or
+                not pd.api.types.is_numeric_dtype(
+                    df[x]
+                )
+            ):
+
+                raise ValueError(
+                    "ECDF requires numerical X."
+                )
+
+            values = np.sort(
+                df[x]
+                .dropna()
+                .to_numpy()
+            )
+
+            y_values = (
+                np.arange(
+                    1,
+                    len(values) + 1
+                )
+                /
+                len(values)
+            )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            axis.step(
+                values,
+                y_values,
+                where="post"
+            )
+
+            axis.set_title(
+                f"ECDF: {x}"
+            )
+
+            axis.set_ylabel(
+                "ECDF"
+            )
+
+        elif graph == "Missing":
+
+            missing = (
+                df.isna()
+                .sum()
+                .sort_values(
+                    ascending=False
+                )
+            )
+
+            missing = (
+                missing[missing > 0]
+                .head(30)
+            )
+
+            if missing.empty:
+
+                raise ValueError(
+                    "No missing values found."
+                )
+
+            figure, axis = plt.subplots(
+                figsize=(9, 5)
+            )
+
+            missing.plot(
+                kind="bar",
+                ax=axis
+            )
+
+            axis.set_title(
+                "Missing Values by Column"
+            )
+
+            axis.tick_params(
+                axis="x",
+                rotation=45
+            )
+
+        elif graph == "3D Scatter":
+
+            if any(
+                column not in df.columns
+                for column in [
+                    x,
+                    y,
+                    z
+                ]
+            ):
+
+                raise ValueError(
+                    "3D scatter requires X, Y and Z."
+                )
+
+            if not all(
+                pd.api.types.is_numeric_dtype(
+                    df[column]
+                )
+                for column in [
+                    x,
+                    y,
+                    z
+                ]
+            ):
+
+                raise ValueError(
+                    "3D scatter requires numerical columns."
+                )
+
+            figure = plt.figure(
+                figsize=(8, 6)
+            )
+
+            axis = figure.add_subplot(
+                111,
+                projection="3d"
+            )
+
+            data = (
+                df[
+                    [x, y, z]
+                ]
+                .dropna()
+                .head(1000)
+            )
+
+            axis.scatter(
+                data[x],
+                data[y],
+                data[z],
+                s=18
+            )
+
+            axis.set_xlabel(x)
+            axis.set_ylabel(y)
+            axis.set_zlabel(z)
+            axis.set_title(
+                "3D Scatter"
+            )
+
+        else:
+
+            raise ValueError(
+                "Unknown graph."
+            )
+
+        figure.tight_layout()
+
+        APP["last_graph"] = figure
+
+        return (
+            figure,
+            f"{graph} generated successfully."
+        )
+
+    except Exception as error:
+
+        return (
+            None,
+            f"Graph error: {error}"
+        )
+
+
+# ============================================================
+# TARGET ANALYSIS
+# ============================================================
+
+def target_analysis(
+    target,
+    task
+):
+
+    try:
+
+        df, error = ensure_df()
+
+        if error:
+
+            return (
+                pd.DataFrame(),
+                None,
+                error
+            )
+
+        if target not in df.columns:
+
+            return (
+                pd.DataFrame(),
+                None,
+                "Select a valid target."
+            )
+
+        series = df[target]
+
+        rows = []
+
+        if task == "Classification":
+
+            value_counts = (
+                series
+                .astype(str)
+                .value_counts(
+                    dropna=False
+                )
+            )
+
+            total = max(
+                1,
+                len(series)
+            )
+
+            for cls, count in (
+                value_counts
+                .head(30)
+                .items()
+            ):
+
+                rows.append([
+                    str(cls),
+                    int(count),
+                    round(
+                        count / total * 100,
+                        2
+                    )
+                ])
+
+            table = pd.DataFrame(
+                rows,
+                columns=[
+                    "Class",
+                    "Count",
+                    "Percentage"
+                ]
+            )
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            value_counts.head(20).plot(
+                kind="bar",
+                ax=axis
+            )
+
+            axis.set_title(
+                f"Target Class Distribution: {target}"
+            )
+
+            axis.tick_params(
+                axis="x",
+                rotation=45
+            )
+
+            numeric_association = []
+
+            target_codes = pd.factorize(
+                series.astype(str)
+            )[0]
+
+            for feature in numeric_cols(df):
+
+                if feature == target:
+                    continue
+
+                try:
+
+                    values = pd.to_numeric(
+                        df[feature],
+                        errors="coerce"
+                    )
+
+                    association = abs(
+                        pd.Series(values).corr(
+                            pd.Series(target_codes),
+                            method="spearman"
+                        )
+                    )
+
+                    numeric_association.append([
+                        feature,
+                        association
+                    ])
+
+                except Exception:
+                    pass
+
+            if numeric_association:
+
+                association_df = (
+                    pd.DataFrame(
+                        numeric_association,
+                        columns=[
+                            "Feature",
+                            "Target Association"
+                        ]
+                    )
+                    .sort_values(
+                        "Target Association",
+                        ascending=False
+                    )
+                    .head(20)
+                )
+
+        else:
+
+            if not pd.api.types.is_numeric_dtype(
+                series
+            ):
+
+                return (
+                    pd.DataFrame(),
+                    None,
+                    "Regression target must be numerical."
+                )
+
+            values = series.dropna()
+
+            q1 = values.quantile(.25)
+            q3 = values.quantile(.75)
+            iqr = q3 - q1
+
+            if iqr != 0:
+
+                outlier_count = int(
+                    (
+                        (
+                            values <
+                            q1 - 1.5 * iqr
+                        )
+                        |
+                        (
+                            values >
+                            q3 + 1.5 * iqr
+                        )
+                    ).sum()
+                )
+
+            else:
+
+                outlier_count = 0
+
+            table = pd.DataFrame([
+                {
+                    "Target": target,
+                    "Count": len(values),
+                    "Mean": values.mean(),
+                    "Median": values.median(),
+                    "Std Dev": values.std(),
+                    "Skewness": values.skew(),
+                    "Kurtosis": values.kurt(),
+                    "Min": values.min(),
+                    "Max": values.max(),
+                    "IQR": iqr,
+                    "Outliers": outlier_count
+                }
+            ]).round(5)
+
+            figure, axis = plt.subplots(
+                figsize=(8, 5)
+            )
+
+            sns.histplot(
+                values,
+                kde=True,
+                ax=axis
+            )
+
+            axis.set_title(
+                f"Regression Target Distribution: {target}"
+            )
+
+        APP["last_target"] = table
+
+        return (
+            table,
+            figure,
+            f"Target analysis complete for {target}."
+        )
+
+    except Exception as error:
+
+        return (
+            pd.DataFrame(),
+            None,
+            f"Target analysis failed: {error}"
+        )
+
+
+# ============================================================
+# FEATURE ENGINEERING
+# ============================================================
+
+def feature_engineering(
+    operation,
+    columns,
+    k
+):
+
+    try:
+
+        df, error = ensure_df()
+
+        if error:
+
+            return (
+                pd.DataFrame(),
+                error
+            )
+
+        output = df.copy()
+
+        selected = [
+            column
+            for column in (columns or [])
+            if column in output.columns
+        ]
+
+        if operation == "Log":
+
+            for column in selected:
+
+                if pd.api.types.is_numeric_dtype(
+                    output[column]
+                ):
+
+                    output[
+                        column + "_log"
+                    ] = np.log1p(
+                        np.clip(
+                            output[column],
+                            0,
+                            None
+                        )
+                    )
+
+        elif operation == "Square":
+
+            for column in selected:
+
+                if pd.api.types.is_numeric_dtype(
+                    output[column]
+                ):
+
+                    output[
+                        column + "_square"
+                    ] = (
+                        output[column] ** 2
+                    )
+
+        elif operation == "Square root":
+
+            for column in selected:
+
+                if pd.api.types.is_numeric_dtype(
+                    output[column]
+                ):
+
+                    output[
+                        column + "_sqrt"
+                    ] = np.sqrt(
+                        np.clip(
+                            output[column],
+                            0,
+                            None
+                        )
+                    )
+
+        elif operation == "Standardization":
+
+            for column in selected:
+
+                if pd.api.types.is_numeric_dtype(
+                    output[column]
+                ):
+
+                    series = output[column]
+                    standard_deviation = series.std()
+
+                    if standard_deviation == 0:
+
+                        output[
+                            column + "_standard"
+                        ] = 0
+
+                    else:
+
+                        output[
+                            column + "_standard"
+                        ] = (
+                            series -
+                            series.mean()
+                        ) / standard_deviation
+
+        elif operation == "MinMax":
+
+            for column in selected:
+
+                if pd.api.types.is_numeric_dtype(
+                    output[column]
+                ):
+
+                    series = output[column]
+
+                    minimum = series.min()
+                    maximum = series.max()
+
+                    if maximum == minimum:
+
+                        output[
+                            column + "_minmax"
+                        ] = 0
+
+                    else:
+
+                        output[
+                            column + "_minmax"
+                        ] = (
+                            series -
+                            minimum
+                        ) / (
+                            maximum -
+                            minimum
+                        )
+
+        elif operation == "Robust scaling":
+
+            for column in selected:
+
+                if pd.api.types.is_numeric_dtype(
+                    output[column]
+                ):
+
+                    series = output[column]
+
+                    median = series.median()
+
+                    iqr = (
+                        series.quantile(.75)
+                        -
+                        series.quantile(.25)
+                    )
+
+                    if iqr == 0:
+
+                        output[
+                            column + "_robust"
+                        ] = 0
+
+                    else:
+
+                        output[
+                            column + "_robust"
+                        ] = (
+                            series -
+                            median
+                        ) / iqr
+
+        elif operation == "One-hot encoding":
+
+            if selected:
+
+                encoded = pd.get_dummies(
+                    output[selected],
+                    dummy_na=True,
+                    prefix=selected,
+                    dtype=int
+                )
+
+                output = pd.concat(
+                    [
+                        output.drop(
+                            columns=selected
+                        ),
+                        encoded
+                    ],
+                    axis=1
+                )
+
+        elif operation == "Ordinal encoding":
+
+            for column in selected:
+
+                if column in output.columns:
+
+                    output[column] = (
+                        pd.factorize(
+                            output[column]
+                            .astype(str)
+                        )[0]
+                    )
+
+        elif operation == "Frequency encoding":
+
+            for column in selected:
+
+                if column in output.columns:
+
+                    frequency = (
+                        output[column]
+                        .value_counts(
+                            normalize=True
+                        )
+                    )
+
+                    output[
+                        column + "_frequency"
+                    ] = output[column].map(
+                        frequency
+                    )
+
+        elif operation == "Variance filtering":
+
+            numerical = (
+                output
+                .select_dtypes(
+                    include=np.number
+                )
+            )
+
+            low_variance = (
+                numerical
+                .var()
+                .sort_values()
+            )
+
+            threshold = float(
+                k or .01
+            )
+
+            drop_columns = (
+                low_variance[
+                    low_variance <= threshold
+                ]
+                .index
+                .tolist()
+            )
+
+            output = output.drop(
+                columns=drop_columns,
+                errors="ignore"
+            )
+
+        elif operation == "Correlation filtering":
+
+            numerical = (
+                output
+                .select_dtypes(
+                    include=np.number
+                )
+            )
+
+            correlation = (
+                numerical
+                .corr()
+                .abs()
+            )
+
+            upper = correlation.where(
+                np.triu(
+                    np.ones(
+                        correlation.shape
+                    ),
+                    k=1
+                ).astype(bool)
+            )
+
+            threshold = float(
+                k or .9
+            )
+
+            drop_columns = [
+                column
+                for column in upper.columns
+                if any(
+                    upper[column] >
+                    threshold
+                )
+            ]
+
+            output = output.drop(
+                columns=drop_columns,
+                errors="ignore"
+            )
+
+        elif operation == "SelectKBest":
+
+            numerical = (
+                output
+                .select_dtypes(
+                    include=np.number
+                )
+            )
+
+            k_value = int(
+                k or 5
+            )
+
+            if len(numerical.columns) > k_value:
+
+                keep = (
+                    numerical
+                    .var()
+                    .sort_values(
+                        ascending=False
+                    )
+                    .head(k_value)
+                    .index
+                    .tolist()
+                )
+
+                drop_columns = [
+                    column
+                    for column in numerical.columns
+                    if column not in keep
+                ]
+
+                output = output.drop(
+                    columns=drop_columns,
+                    errors="ignore"
+                )
+
+        elif operation == "PCA":
+
+            numerical_columns = (
+                output
+                .select_dtypes(
+                    include=np.number
+                )
+                .columns
+                .tolist()
+            )
+
+            if len(numerical_columns) < 2:
+
+                raise ValueError(
+                    "PCA needs at least two numerical columns."
+                )
+
+            data = (
+                output[
+                    numerical_columns
+                ]
+                .replace(
+                    [np.inf, -np.inf],
+                    np.nan
+                )
+            )
+
+            data = data.fillna(
+                data.median()
+            )
+
+            components = max(
+                1,
+                min(
+                    int(k or 2),
+                    len(numerical_columns),
+                    len(data)
+                )
+            )
+
+            pca = PCA(
+                n_components=components,
+                random_state=42
+            )
+
+            transformed = pca.fit_transform(
+                StandardScaler()
+                .fit_transform(data)
+            )
+
+            output = output.drop(
+                columns=numerical_columns
+            )
+
+            for index in range(
+                components
+            ):
+
+                output[
+                    f"PCA_{index + 1}"
+                ] = transformed[:, index]
+
+        else:
+
+            raise ValueError(
+                "Select a feature-engineering operation."
+            )
+
+        APP["last_feature_result"] = (
+            output.copy()
+        )
+
+        return (
+            output.head(100),
+            (
+                "Feature engineering complete. "
+                f"Result: {output.shape[0]:,} rows × "
+                f"{output.shape[1]:,} columns."
+            )
+        )
+
+    except Exception as error:
+
+        return (
+            pd.DataFrame(),
+            f"Feature engineering failed: {error}"
+        )
+
+
+# ============================================================
+# MACHINE LEARNING PREPROCESSOR
+# ============================================================
+
+def build_preprocessor(
+    X,
+    scaling="Standard",
+    encoding="One-Hot"
+):
+
+    numerical = (
+        X.select_dtypes(
+            include=np.number
+        )
+        .columns
+        .tolist()
+    )
+
+    categorical = (
+        X.select_dtypes(
+            exclude=np.number
+        )
+        .columns
+        .tolist()
+    )
+
+    transformers = []
+
+    if numerical:
+
+        scaler = "passthrough"
+
+        if scaling == "Standard":
+
+            scaler = StandardScaler()
+
+        elif scaling == "MinMax":
+
+            scaler = MinMaxScaler()
+
+        elif scaling == "Robust":
+
+            scaler = RobustScaler()
+
+        transformers.append(
+            (
+                "num",
+
+                Pipeline([
+                    (
+                        "imputer",
+                        SimpleImputer(
+                            strategy="median"
+                        )
+                    ),
+                    (
+                        "scaler",
+                        scaler
+                    )
+                ]),
+
+                numerical
+            )
+        )
+
+    if categorical:
+
+        if encoding == "Ordinal":
+
+            encoder = OrdinalEncoder(
+                handle_unknown="use_encoded_value",
+                unknown_value=-1
+            )
+
+        else:
+
+            try:
+
+                encoder = OneHotEncoder(
+                    handle_unknown="ignore",
+                    sparse_output=False
+                )
+
+            except TypeError:
+
+                encoder = OneHotEncoder(
+                    handle_unknown="ignore",
+                    sparse=False
+                )
+
+        transformers.append(
+            (
+                "cat",
+
+                Pipeline([
+                    (
+                        "imputer",
+                        SimpleImputer(
+                            strategy="most_frequent"
+                        )
+                    ),
+                    (
+                        "encoder",
+                        encoder
+                    )
+                ]),
+
+                categorical
+            )
+        )
+
+    if not transformers:
+
+        raise ValueError(
+            "No usable feature columns."
+        )
+
+    return ColumnTransformer(
+        transformers=transformers,
+        remainder="drop"
+    )
+
+
+# ============================================================
+# MODEL FACTORY
+# ============================================================
+
+def make_model(
+    task,
+    name
+):
+
+    if task == "Classification":
+
+        models = {
+
+            "Logistic Regression":
+                LogisticRegression(
+                    max_iter=1000
+                ),
+
+            "KNN":
+                KNeighborsClassifier(),
+
+            "Naive Bayes":
+                GaussianNB(),
+
+            "Decision Tree":
+                DecisionTreeClassifier(
+                    random_state=42,
+                    max_depth=8
+                ),
+
+            "Random Forest":
+                RandomForestClassifier(
+                    n_estimators=150,
+                    random_state=42,
+                    n_jobs=-1
+                ),
+
+            "SVM":
+                SVC(
+                    probability=True,
+                    random_state=42
+                ),
+
+            "Gradient Boosting":
+                GradientBoostingClassifier(
+                    random_state=42
+                )
+        }
+
+        if XGB_AVAILABLE:
+
+            models["XGBoost"] = (
+                XGBClassifier(
+                    n_estimators=120,
+                    max_depth=4,
+                    learning_rate=.08,
+                    subsample=.85,
+                    colsample_bytree=.85,
+                    eval_metric="logloss",
+                    random_state=42,
+                    n_jobs=-1
+                )
+            )
 
     else:
 
-        st.download_button(
-            label="Download Cleaned Excel",
-            data=create_excel_bytes(
-                download_df
-            ),
-            file_name=f"{base_name}_cleaned.xlsx",
-            mime=(
-                "application/"
-                "vnd.openxmlformats-officedocument."
-                "spreadsheetml.sheet"
-            ),
-            use_container_width=True,
-            key="download_excel",
+        models = {
+
+            "Linear Regression":
+                LinearRegression(),
+
+            "Polynomial Regression":
+                Pipeline([
+                    (
+                        "poly",
+                        PolynomialFeatures(
+                            degree=2,
+                            include_bias=False
+                        )
+                    ),
+                    (
+                        "model",
+                        LinearRegression()
+                    )
+                ]),
+
+            "Ridge":
+                Ridge(
+                    alpha=1.0
+                ),
+
+            "Lasso":
+                Lasso(
+                    alpha=.01
+                ),
+
+            "Decision Tree":
+                DecisionTreeRegressor(
+                    random_state=42,
+                    max_depth=8
+                ),
+
+            "Random Forest":
+                RandomForestRegressor(
+                    n_estimators=150,
+                    random_state=42,
+                    n_jobs=-1
+                ),
+
+            "SVR":
+                SVR(),
+
+            "Gradient Boosting":
+                GradientBoostingRegressor(
+                    random_state=42
+                )
+        }
+
+        if XGB_AVAILABLE:
+
+            models["XGBoost"] = (
+                XGBRegressor(
+                    n_estimators=120,
+                    max_depth=4,
+                    learning_rate=.08,
+                    subsample=.85,
+                    colsample_bytree=.85,
+                    objective="reg:squarederror",
+                    random_state=42,
+                    n_jobs=-1
+                )
+            )
+
+    if name not in models:
+
+        raise ValueError(
+            f"Model {name} is not compatible with {task}."
         )
 
-    st.subheader("Original Dataset")
+    return models[name]
 
-    original_df = st.session_state.original_df
 
-    if original_df is not None:
+# ============================================================
+# MODEL TRAINING
+# ============================================================
 
-        if st.button(
-            "Download Original CSV",
-            use_container_width=True,
-            key="download_original_csv",
+def train_model(
+    task,
+    target,
+    model_name,
+    test_size,
+    scaling,
+    encoding,
+    cv_folds
+):
+
+    try:
+
+        df, error = ensure_df()
+
+        if error:
+
+            return (
+                None,
+                None,
+                None,
+                None,
+                error
+            )
+
+        if target not in df.columns:
+
+            return (
+                None,
+                None,
+                None,
+                None,
+                "Select a valid target."
+            )
+
+        if (
+            task == "Regression"
+            and
+            not pd.api.types.is_numeric_dtype(
+                df[target]
+            )
         ):
 
-            st.download_button(
-                label="Download Original CSV File",
-                data=create_csv_bytes(
-                    original_df
-                ),
-                file_name=f"{base_name}_original.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="download_original_csv_actual",
+            return (
+                None,
+                None,
+                None,
+                None,
+                "Regression target must be numerical."
             )
 
-# =========================================================
-# AUDIT LOG
-# =========================================================
+        if len(df) < 20:
 
-with tabs[11]:
+            return (
+                None,
+                None,
+                None,
+                None,
+                "At least 20 rows are recommended."
+            )
 
-    st.markdown(
-        '<div class="section-title">Cleaning Audit Log</div>',
-        unsafe_allow_html=True,
-    )
-
-    if st.session_state.cleaning_log:
-
-        log_df = pd.DataFrame(
-            {
-                "Step": range(
-                    1,
-                    len(
-                        st.session_state.cleaning_log
-                    )
-                    + 1,
-                ),
-                "Operation": st.session_state.cleaning_log,
-            }
+        data = (
+            df.copy()
+            .replace(
+                [np.inf, -np.inf],
+                np.nan
+            )
         )
 
-        st.dataframe(
-            log_df,
-            use_container_width=True,
-            hide_index=True,
+        X = data.drop(
+            columns=[target]
         )
 
-    else:
+        y = data[target]
 
-        st.info(
-            "No cleaning operations have been applied yet."
-        )
+        if task == "Classification":
 
-    st.subheader("Dataset State")
+            mask = y.notna()
 
-    state_df = pd.DataFrame(
-        {
-            "Metric": [
-                "Original Rows",
-                "Current Rows",
-                "Rows Changed",
-                "Original Columns",
-                "Current Columns",
-                "Missing Cells",
-                "Duplicate Rows",
-            ],
-            "Value": [
-                len(
-                    st.session_state.original_df
-                ),
-                len(
-                    st.session_state.working_df
-                ),
-                len(
-                    st.session_state.original_df
+            X = X.loc[mask]
+            y = y.loc[mask]
+
+            if y.nunique() < 2:
+
+                return (
+                    None,
+                    None,
+                    None,
+                    None,
+                    "Classification needs at least two classes."
                 )
-                - len(
-                    st.session_state.working_df
-                ),
-                len(
-                    st.session_state.original_df.columns
-                ),
-                len(
-                    st.session_state.working_df.columns
-                ),
-                int(
-                    st.session_state.working_df
-                    .isna()
-                    .sum()
-                    .sum()
-                ),
-                int(
-                    st.session_state.working_df
-                    .duplicated()
-                    .sum()
-                ),
+
+            if y.nunique() > 50:
+
+                return (
+                    None,
+                    None,
+                    None,
+                    None,
+                    "Target has too many classes for this classifier."
+                )
+
+        else:
+
+            mask = y.notna()
+
+            X = X.loc[mask]
+
+            y = pd.to_numeric(
+                y.loc[mask],
+                errors="coerce"
+            )
+
+            mask = y.notna()
+
+            X = X.loc[mask]
+            y = y.loc[mask]
+
+        if task == "Classification":
+
+            if y.value_counts().min() >= 2:
+
+                stratify = y
+
+            else:
+
+                stratify = None
+
+        else:
+
+            stratify = None
+
+        X_train, X_test, y_train, y_test = (
+            train_test_split(
+                X,
+                y,
+                test_size=float(test_size),
+                random_state=42,
+                stratify=stratify
+            )
+        )
+
+        preprocessor = build_preprocessor(
+            X_train,
+            scaling,
+            encoding
+        )
+
+        model = make_model(
+            task,
+            model_name
+        )
+
+        pipeline = Pipeline([
+            (
+                "preprocessor",
+                preprocessor
+            ),
+            (
+                "model",
+                model
+            )
+        ])
+
+        pipeline.fit(
+            X_train,
+            y_train
+        )
+
+        predictions = pipeline.predict(
+            X_test
+        )
+
+        probabilities = None
+
+        if (
+            task == "Classification"
+            and
+            hasattr(
+                pipeline,
+                "predict_proba"
+            )
+        ):
+
+            try:
+
+                probabilities = (
+                    pipeline
+                    .predict_proba(
+                        X_test
+                    )
+                )
+
+            except Exception:
+
+                probabilities = None
+
+        APP.update({
+
+            "trained_pipeline":
+                pipeline,
+
+            "trained_model":
+                model,
+
+            "preprocessor":
+                preprocessor,
+
+            "target_column":
+                target,
+
+            "task_type":
+                task,
+
+            "X_train":
+                X_train,
+
+            "X_test":
+                X_test,
+
+            "y_train":
+                y_train,
+
+            "y_test":
+                y_test,
+
+            "predictions":
+                predictions,
+
+            "probabilities":
+                probabilities,
+
+            "raw_feature_names":
+                X.columns.tolist()
+        })
+
+        metrics = evaluate_current()
+
+        comparison = (
+            run_model_comparison(
+                task,
+                target,
+                test_size,
+                scaling,
+                encoding,
+                cv_folds,
+                model_name
+            )
+        )
+
+        importance = (
+            feature_importance_table()
+        )
+
+        APP["model_results"] = (
+            comparison
+            if isinstance(
+                comparison,
+                pd.DataFrame
+            )
+            else pd.DataFrame()
+        )
+
+        APP["evaluation_metrics"] = (
+            metrics
+            if isinstance(
+                metrics,
+                pd.DataFrame
+            )
+            else pd.DataFrame()
+        )
+
+        APP["feature_importance"] = (
+            importance
+            if isinstance(
+                importance,
+                pd.DataFrame
+            )
+            else pd.DataFrame()
+        )
+
+        prediction_template = (
+            prediction_table()
+        )
+
+        status = (
+            f"Model trained successfully: "
+            f"{model_name} | "
+            f"{task} | "
+            f"Test rows: {len(y_test):,}"
+        )
+
+        return (
+            metrics,
+            importance,
+            prediction_template,
+            comparison,
+            status
+        )
+
+    except Exception as error:
+
+        return (
+            None,
+            None,
+            None,
+            None,
+            f"Model training failed: {error}"
+        )
+
+
+# ============================================================
+# MODEL EVALUATION
+# ============================================================
+
+def evaluate_current():
+
+    task = APP["task_type"]
+
+    y_true = APP["y_test"]
+    predictions = APP["predictions"]
+
+    if task == "Classification":
+
+        average = (
+            "binary"
+            if len(
+                pd.Series(y_true).unique()
+            ) == 2
+            else
+            "weighted"
+        )
+
+        rows = [
+
+            [
+                "Accuracy",
+                accuracy_score(
+                    y_true,
+                    predictions
+                )
             ],
-        }
+
+            [
+                "Precision",
+                precision_score(
+                    y_true,
+                    predictions,
+                    average=average,
+                    zero_division=0
+                )
+            ],
+
+            [
+                "Recall",
+                recall_score(
+                    y_true,
+                    predictions,
+                    average=average,
+                    zero_division=0
+                )
+            ],
+
+            [
+                "F1",
+                f1_score(
+                    y_true,
+                    predictions,
+                    average=average,
+                    zero_division=0
+                )
+            ]
+        ]
+
+        if APP["probabilities"] is not None:
+
+            try:
+
+                if len(
+                    np.unique(y_true)
+                ) == 2:
+
+                    probability = (
+                        APP["probabilities"][:, 1]
+                    )
+
+                    rows.append([
+                        "ROC-AUC",
+                        roc_auc_score(
+                            y_true,
+                            probability
+                        )
+                    ])
+
+                else:
+
+                    rows.append([
+                        "ROC-AUC",
+                        roc_auc_score(
+                            y_true,
+                            APP["probabilities"],
+                            multi_class="ovr",
+                            average="weighted"
+                        )
+                    ])
+
+            except Exception:
+                pass
+
+        return pd.DataFrame(
+            rows,
+            columns=[
+                "Metric",
+                "Value"
+            ]
+        ).round(5)
+
+    mse = mean_squared_error(
+        y_true,
+        predictions
     )
 
-    st.dataframe(
-        state_df,
-        use_container_width=True,
-        hide_index=True,
+    r2 = r2_score(
+        y_true,
+        predictions
     )
 
-# ---------------------------------------------------------
-# FOOTER
-# ---------------------------------------------------------
+    n = len(y_true)
 
-st.markdown(
-    """
-    <div class="footer">
-        AI and ML Analytics Dashboard | Data Analysis | Data Cleaning |
-        Exploratory Data Analysis | Feature Analysis | Outlier Detection |
-        Target Analysis | Machine Learning
+    p = max(
+        1,
+        APP["X_test"].shape[1]
+    )
+
+    adjusted_r2 = (
+        1 -
+        (
+            1 - r2
+        )
+        *
+        (
+            n - 1
+        )
+        /
+        max(
+            1,
+            n - p - 1
+        )
+    )
+
+    return pd.DataFrame([
+        [
+            "MAE",
+            mean_absolute_error(
+                y_true,
+                predictions
+            )
+        ],
+
+        [
+            "MSE",
+            mse
+        ],
+
+        [
+            "RMSE",
+            np.sqrt(mse)
+        ],
+
+        [
+            "R2",
+            r2
+        ],
+
+        [
+            "Adjusted R2",
+            adjusted_r2
+        ]
+
+    ], columns=[
+        "Metric",
+        "Value"
+    ]).round(5)
+
+
+# ============================================================
+# EVALUATION PLOTS
+# ============================================================
+
+def evaluation_plot(kind):
+
+    try:
+
+        if APP["predictions"] is None:
+
+            return (
+                None,
+                "Train a model first."
+            )
+
+        y_true = APP["y_test"]
+        predictions = APP["predictions"]
+
+        figure, axis = plt.subplots(
+            figsize=(8, 5)
+        )
+
+        if APP["task_type"] == "Classification":
+
+            matrix = confusion_matrix(
+                y_true,
+                predictions
+            )
+
+            if kind == "Confusion Matrix":
+
+                sns.heatmap(
+                    matrix,
+                    annot=True,
+                    fmt="d",
+                    cmap="Blues",
+                    ax=axis
+                )
+
+                axis.set_xlabel(
+                    "Predicted"
+                )
+
+                axis.set_ylabel(
+                    "Actual"
+                )
+
+                axis.set_title(
+                    "Confusion Matrix"
+                )
+
+            elif kind == "ROC":
+
+                if APP["probabilities"] is None:
+
+                    raise ValueError(
+                        "Probability output is unavailable for this model."
+                    )
+
+                if len(
+                    np.unique(y_true)
+                ) != 2:
+
+                    raise ValueError(
+                        "ROC plot currently uses binary classification."
+                    )
+
+                false_positive, true_positive, _ = (
+                    roc_curve(
+                        y_true,
+                        APP["probabilities"][:, 1]
+                    )
+                )
+
+                axis.plot(
+                    false_positive,
+                    true_positive
+                )
+
+                axis.plot(
+                    [0, 1],
+                    [0, 1],
+                    "--"
+                )
+
+                axis.set_xlabel(
+                    "False Positive Rate"
+                )
+
+                axis.set_ylabel(
+                    "True Positive Rate"
+                )
+
+                axis.set_title(
+                    "ROC Curve"
+                )
+
+            else:
+
+                if APP["probabilities"] is None:
+
+                    raise ValueError(
+                        "Probability output is unavailable for this model."
+                    )
+
+                if len(
+                    np.unique(y_true)
+                ) != 2:
+
+                    raise ValueError(
+                        "Precision-Recall plot currently uses binary classification."
+                    )
+
+                precision, recall, _ = (
+                    precision_recall_curve(
+                        y_true,
+                        APP["probabilities"][:, 1]
+                    )
+                )
+
+                axis.plot(
+                    recall,
+                    precision
+                )
+
+                axis.set_xlabel(
+                    "Recall"
+                )
+
+                axis.set_ylabel(
+                    "Precision"
+                )
+
+                axis.set_title(
+                    "Precision-Recall Curve"
+                )
+
+        else:
+
+            if kind == "Actual vs Predicted":
+
+                axis.scatter(
+                    y_true,
+                    predictions
+                )
+
+                lower = min(
+                    np.min(y_true),
+                    np.min(predictions)
+                )
+
+                upper = max(
+                    np.max(y_true),
+                    np.max(predictions)
+                )
+
+                axis.plot(
+                    [lower, upper],
+                    [lower, upper],
+                    "--"
+                )
+
+                axis.set_xlabel(
+                    "Actual"
+                )
+
+                axis.set_ylabel(
+                    "Predicted"
+                )
+
+                axis.set_title(
+                    "Actual vs Predicted"
+                )
+
+            else:
+
+                residuals = (
+                    y_true -
+                    predictions
+                )
+
+                sns.scatterplot(
+                    x=predictions,
+                    y=residuals,
+                    ax=axis
+                )
+
+                axis.axhline(
+                    0,
+                    ls="--"
+                )
+
+                axis.set_xlabel(
+                    "Predicted"
+                )
+
+                axis.set_ylabel(
+                    "Residual"
+                )
+
+                axis.set_title(
+                    "Residual Plot"
+                )
+
+        figure.tight_layout()
+
+        return (
+            figure,
+            f"{kind} generated."
+        )
+
+    except Exception as error:
+
+        return (
+            None,
+            f"Evaluation plot failed: {error}"
+        )
+
+
+# ============================================================
+# MODEL COMPARISON
+# ============================================================
+
+def run_model_comparison(
+    task,
+    target,
+    test_size,
+    scaling,
+    encoding,
+    cv_folds,
+    selected_model
+):
+
+    try:
+
+        df = (
+            APP["processed_df"]
+            .copy()
+            .replace(
+                [np.inf, -np.inf],
+                np.nan
+            )
+        )
+
+        X = df.drop(
+            columns=[target]
+        )
+
+        y = df[target]
+
+        if task == "Regression":
+
+            y = pd.to_numeric(
+                y,
+                errors="coerce"
+            )
+
+        mask = y.notna()
+
+        X = X.loc[mask]
+        y = y.loc[mask]
+
+        if len(X) < 20:
+
+            return pd.DataFrame()
+
+        if task == "Classification":
+
+            model_names = [
+                "Logistic Regression",
+                "KNN",
+                "Naive Bayes",
+                "Decision Tree",
+                "Random Forest",
+                "SVM",
+                "Gradient Boosting"
+            ]
+
+        else:
+
+            model_names = [
+                "Linear Regression",
+                "Ridge",
+                "Lasso",
+                "Decision Tree",
+                "Random Forest",
+                "SVR",
+                "Gradient Boosting"
+            ]
+
+        if XGB_AVAILABLE:
+
+            model_names.append(
+                "XGBoost"
+            )
+
+        if task == "Classification":
+
+            stratify = (
+                y
+                if y.value_counts().min() >= 2
+                else None
+            )
+
+        else:
+
+            stratify = None
+
+        X_train, X_test, y_train, y_test = (
+            train_test_split(
+                X,
+                y,
+                test_size=float(test_size),
+                random_state=42,
+                stratify=stratify
+            )
+        )
+
+        rows = []
+
+        for name in model_names:
+
+            try:
+
+                preprocessor = build_preprocessor(
+                    X_train,
+                    scaling,
+                    encoding
+                )
+
+                pipeline = Pipeline([
+                    (
+                        "preprocessor",
+                        preprocessor
+                    ),
+                    (
+                        "model",
+                        make_model(
+                            task,
+                            name
+                        )
+                    )
+                ])
+
+                pipeline.fit(
+                    X_train,
+                    y_train
+                )
+
+                prediction = pipeline.predict(
+                    X_test
+                )
+
+                if task == "Classification":
+
+                    score = accuracy_score(
+                        y_test,
+                        prediction
+                    )
+
+                    rows.append([
+                        name,
+                        score,
+                        "Accuracy"
+                    ])
+
+                else:
+
+                    rmse = np.sqrt(
+                        mean_squared_error(
+                            y_test,
+                            prediction
+                        )
+                    )
+
+                    r2 = r2_score(
+                        y_test,
+                        prediction
+                    )
+
+                    rows.append([
+                        name,
+                        rmse,
+                        r2,
+                        "RMSE"
+                    ])
+
+            except Exception:
+
+                if task == "Classification":
+
+                    rows.append([
+                        name,
+                        np.nan,
+                        "Failed"
+                    ])
+
+                else:
+
+                    rows.append([
+                        name,
+                        np.nan,
+                        np.nan,
+                        "Failed"
+                    ])
+
+        if task == "Classification":
+
+            result = pd.DataFrame(
+                rows,
+                columns=[
+                    "Model",
+                    "Score",
+                    "Metric"
+                ]
+            )
+
+            result["Score"] = (
+                result["Score"]
+                .round(5)
+            )
+
+            result = (
+                result
+                .sort_values(
+                    "Score",
+                    ascending=False
+                )
+                .reset_index(drop=True)
+            )
+
+        else:
+
+            result = pd.DataFrame(
+                rows,
+                columns=[
+                    "Model",
+                    "RMSE",
+                    "R2",
+                    "Metric"
+                ]
+            )
+
+            result = (
+                result
+                .sort_values(
+                    "RMSE",
+                    ascending=True
+                )
+                .reset_index(drop=True)
+            )
+
+            result["RMSE"] = (
+                result["RMSE"]
+                .round(5)
+            )
+
+            result["R2"] = (
+                result["R2"]
+                .round(5)
+            )
+
+        return result
+
+    except Exception:
+
+        return pd.DataFrame()
+
+
+# ============================================================
+# FEATURE IMPORTANCE
+# ============================================================
+
+def feature_importance_table():
+
+    try:
+
+        pipeline = APP[
+            "trained_pipeline"
+        ]
+
+        if pipeline is None:
+
+            return pd.DataFrame()
+
+        model = pipeline.named_steps[
+            "model"
+        ]
+
+        preprocessor = (
+            pipeline
+            .named_steps[
+                "preprocessor"
+            ]
+        )
+
+        try:
+
+            names = (
+                preprocessor
+                .get_feature_names_out()
+            )
+
+        except Exception:
+
+            names = [
+                f"Feature {index + 1}"
+                for index in range(
+                    len(
+                        getattr(
+                            model,
+                            "feature_importances_",
+                            []
+                        )
+                    )
+                )
+            ]
+
+        if hasattr(
+            model,
+            "feature_importances_"
+        ):
+
+            values = (
+                model.feature_importances_
+            )
+
+        elif hasattr(
+            model,
+            "coef_"
+        ):
+
+            coefficients = np.asarray(
+                model.coef_
+            )
+
+            if coefficients.ndim > 1:
+
+                values = np.mean(
+                    np.abs(
+                        coefficients
+                    ),
+                    axis=0
+                )
+
+            else:
+
+                values = np.abs(
+                    coefficients
+                )
+
+        else:
+
+            return permutation_feature_importance()
+
+        result = pd.DataFrame({
+
+            "Feature":
+                names,
+
+            "Importance":
+                values
+        })
+
+        return (
+            result
+            .sort_values(
+                "Importance",
+                ascending=False
+            )
+            .head(100)
+            .round(6)
+        )
+
+    except Exception:
+
+        return permutation_feature_importance()
+
+
+def permutation_feature_importance():
+
+    try:
+
+        pipeline = APP[
+            "trained_pipeline"
+        ]
+
+        X_test = APP[
+            "X_test"
+        ]
+
+        y_test = APP[
+            "y_test"
+        ]
+
+        if pipeline is None:
+
+            return pd.DataFrame()
+
+        result = permutation_importance(
+            pipeline,
+            X_test,
+            y_test,
+            n_repeats=5,
+            random_state=42,
+            n_jobs=-1
+        )
+
+        names = (
+            X_test.columns.tolist()
+        )
+
+        return (
+            pd.DataFrame({
+                "Feature": names,
+                "Importance":
+                    result.importances_mean
+            })
+            .sort_values(
+                "Importance",
+                ascending=False
+            )
+            .round(6)
+        )
+
+    except Exception:
+
+        return pd.DataFrame()
+
+
+# ============================================================
+# CROSS VALIDATION
+# ============================================================
+
+def run_cross_validation(
+    folds
+):
+
+    try:
+
+        if (
+            APP["processed_df"] is None
+            or
+            APP["target_column"] is None
+        ):
+
+            return (
+                pd.DataFrame(),
+                "Train a model first."
+            )
+
+        df = (
+            APP["processed_df"]
+            .copy()
+            .replace(
+                [np.inf, -np.inf],
+                np.nan
+            )
+        )
+
+        target = APP[
+            "target_column"
+        ]
+
+        task = APP[
+            "task_type"
+        ]
+
+        X = df.drop(
+            columns=[target]
+        )
+
+        y = df[target]
+
+        mask = y.notna()
+
+        X = X.loc[mask]
+        y = y.loc[mask]
+
+        if APP["trained_model"] is not None:
+
+            trained_class = (
+                APP["trained_model"]
+                .__class__.__name__
+            )
+
+        else:
+
+            trained_class = ""
+
+        if task == "Classification":
+
+            if "Forest" in trained_class:
+
+                model_name = (
+                    "Random Forest"
+                )
+
+            elif (
+                "Logistic"
+                in trained_class
+            ):
+
+                model_name = (
+                    "Logistic Regression"
+                )
+
+            else:
+
+                model_name = (
+                    "Random Forest"
+                )
+
+        else:
+
+            if "Forest" in trained_class:
+
+                model_name = (
+                    "Random Forest"
+                )
+
+            else:
+
+                model_name = (
+                    "Linear Regression"
+                )
+
+        preprocessor = build_preprocessor(
+            X,
+            "Standard",
+            "One-Hot"
+        )
+
+        pipeline = Pipeline([
+            (
+                "preprocessor",
+                preprocessor
+            ),
+            (
+                "model",
+                make_model(
+                    task,
+                    model_name
+                )
+            )
+        ])
+
+        if task == "Classification":
+
+            cv = StratifiedKFold(
+                n_splits=int(folds),
+                shuffle=True,
+                random_state=42
+            )
+
+            scores = cross_val_score(
+                pipeline,
+                X,
+                y,
+                cv=cv,
+                scoring="accuracy"
+            )
+
+        else:
+
+            cv = KFold(
+                n_splits=int(folds),
+                shuffle=True,
+                random_state=42
+            )
+
+            scores = cross_val_score(
+                pipeline,
+                X,
+                y,
+                cv=cv,
+                scoring="r2"
+            )
+
+        result = pd.DataFrame({
+            "Fold":
+                range(
+                    1,
+                    len(scores) + 1
+                ),
+
+            "Score":
+                scores
+        })
+
+        return (
+            result.round(5),
+            (
+                f"Cross-validation mean: "
+                f"{scores.mean():.4f} ± "
+                f"{scores.std():.4f}"
+            )
+        )
+
+    except Exception as error:
+
+        return (
+            pd.DataFrame(),
+            f"Cross-validation failed: {error}"
+        )
+
+
+# ============================================================
+# HYPERPARAMETER TUNING
+# ============================================================
+
+def tune_model(
+    search_type,
+    task,
+    target,
+    model_name,
+    folds
+):
+
+    try:
+
+        df, error = ensure_df()
+
+        if error:
+
+            return (
+                pd.DataFrame(),
+                "",
+                "Load dataset first."
+            )
+
+        if target not in df.columns:
+
+            return (
+                pd.DataFrame(),
+                "",
+                "Select a valid target."
+            )
+
+        X = (
+            df.drop(
+                columns=[target]
+            )
+            .replace(
+                [np.inf, -np.inf],
+                np.nan
+            )
+        )
+
+        y = df[target]
+
+        if task == "Regression":
+
+            y = pd.to_numeric(
+                y,
+                errors="coerce"
+            )
+
+        mask = y.notna()
+
+        X = X.loc[mask]
+        y = y.loc[mask]
+
+        preprocessor = build_preprocessor(
+            X,
+            "Standard",
+            "One-Hot"
+        )
+
+        model = make_model(
+            task,
+            model_name
+        )
+
+        pipeline = Pipeline([
+            (
+                "preprocessor",
+                preprocessor
+            ),
+            (
+                "model",
+                model
+            )
+        ])
+
+        if task == "Classification":
+
+            scoring = "accuracy"
+
+            if model_name == "Random Forest":
+
+                parameter_grid = {
+                    "model__n_estimators":
+                        [80, 120],
+
+                    "model__max_depth":
+                        [None, 6, 10]
+                }
+
+            elif model_name == "Logistic Regression":
+
+                parameter_grid = {
+                    "model__C":
+                        [0.1, 1, 10]
+                }
+
+            else:
+
+                parameter_grid = {}
+
+        else:
+
+            scoring = (
+                "neg_root_mean_squared_error"
+            )
+
+            if model_name == "Random Forest":
+
+                parameter_grid = {
+                    "model__n_estimators":
+                        [80, 120],
+
+                    "model__max_depth":
+                        [None, 6, 10]
+                }
+
+            elif model_name == "Ridge":
+
+                parameter_grid = {
+                    "model__alpha":
+                        [0.1, 1, 10]
+                }
+
+            elif model_name == "Lasso":
+
+                parameter_grid = {
+                    "model__alpha":
+                        [0.001, 0.01, 0.1]
+                }
+
+            else:
+
+                parameter_grid = {}
+
+        if not parameter_grid:
+
+            return (
+                pd.DataFrame(),
+                "",
+                (
+                    "No safe tuning grid is defined "
+                    "for this model. Use Random Forest, "
+                    "Logistic Regression, Ridge or Lasso."
+                )
+            )
+
+        fold_count = int(
+            folds
+        )
+
+        if search_type == "GridSearchCV":
+
+            search = GridSearchCV(
+                pipeline,
+                parameter_grid,
+                cv=fold_count,
+                scoring=scoring,
+                n_jobs=-1
+            )
+
+        else:
+
+            search = RandomizedSearchCV(
+                pipeline,
+                parameter_grid,
+                n_iter=min(
+                    4,
+                    sum(
+                        len(values)
+                        for values in
+                        parameter_grid.values()
+                    ) * 2
+                ),
+                cv=fold_count,
+                scoring=scoring,
+                random_state=42,
+                n_jobs=-1
+            )
+
+        search.fit(
+            X,
+            y
+        )
+
+        best_pipeline = (
+            search.best_estimator_
+        )
+
+        APP["trained_pipeline"] = (
+            best_pipeline
+        )
+
+        APP["trained_model"] = (
+            best_pipeline
+            .named_steps["model"]
+        )
+
+        APP["target_column"] = target
+        APP["task_type"] = task
+
+        rows = []
+
+        for parameters, score in zip(
+            search.cv_results_["params"],
+            search.cv_results_["mean_test_score"]
+        ):
+
+            rows.append([
+                str(parameters),
+                float(score)
+            ])
+
+        result = pd.DataFrame(
+            rows,
+            columns=[
+                "Parameters",
+                "CV Score"
+            ]
+        )
+
+        result = (
+            result
+            .sort_values(
+                "CV Score",
+                ascending=False
+            )
+        )
+
+        APP["last_tuning"] = (
+            result
+        )
+
+        return (
+            result,
+            str(
+                search.best_params_
+            ),
+            (
+                f"Best CV score: "
+                f"{search.best_score_:.5f}"
+            )
+        )
+
+    except Exception as error:
+
+        return (
+            pd.DataFrame(),
+            "",
+            f"Tuning failed: {error}"
+        )
+
+
+# ============================================================
+# PREDICTION
+# ============================================================
+
+def prediction_table():
+
+    pipeline = APP[
+        "trained_pipeline"
+    ]
+
+    if (
+        pipeline is None
+        or
+        not APP["raw_feature_names"]
+    ):
+
+        return pd.DataFrame(
+            columns=[
+                "Feature",
+                "Value"
+            ]
+        )
+
+    values = []
+
+    X_train = APP[
+        "X_train"
+    ]
+
+    for column in APP[
+        "raw_feature_names"
+    ]:
+
+        default = ""
+
+        if column in X_train.columns:
+
+            series = X_train[column]
+
+            if pd.api.types.is_numeric_dtype(
+                series
+            ):
+
+                default = fmt_num(
+                    series.median()
+                )
+
+            else:
+
+                mode = (
+                    series
+                    .mode()
+                )
+
+                if not mode.empty:
+
+                    default = str(
+                        mode.iloc[0]
+                    )
+
+        values.append([
+            column,
+            default
+        ])
+
+    result = pd.DataFrame(
+        values,
+        columns=[
+            "Feature",
+            "Value"
+        ]
+    )
+
+    APP["prediction_df"] = (
+        result.copy()
+    )
+
+    return result
+
+
+def predict_from_table(
+    table
+):
+
+    try:
+
+        if APP["trained_pipeline"] is None:
+
+            return (
+                pd.DataFrame(
+                    columns=[
+                        "Result",
+                        "Value"
+                    ]
+                ),
+                "Train a model first."
+            )
+
+        if table is None:
+
+            return (
+                pd.DataFrame(
+                    columns=[
+                        "Result",
+                        "Value"
+                    ]
+                ),
+                "Prediction input is incomplete."
+            )
+
+        prediction_input = pd.DataFrame(
+            table,
+            columns=[
+                "Feature",
+                "Value"
+            ]
+        )
+
+        if prediction_input.empty:
+
+            return (
+                pd.DataFrame(
+                    columns=[
+                        "Result",
+                        "Value"
+                    ]
+                ),
+                "Prediction input is empty."
+            )
+
+        data = {}
+
+        X_train = APP[
+            "X_train"
+        ]
+
+        for _, row in (
+            prediction_input
+            .iterrows()
+        ):
+
+            feature = str(
+                row["Feature"]
+            )
+
+            if feature not in (
+                APP["raw_feature_names"]
+            ):
+
+                continue
+
+            value = row["Value"]
+
+            if pd.api.types.is_numeric_dtype(
+                X_train[feature]
+            ):
+
+                try:
+
+                    value = float(
+                        value
+                    )
+
+                except Exception:
+
+                    value = np.nan
+
+            data[feature] = value
+
+        for feature in (
+            APP["raw_feature_names"]
+        ):
+
+            if feature not in data:
+
+                data[feature] = np.nan
+
+        input_df = pd.DataFrame(
+            [
+                data
+            ],
+            columns=APP[
+                "raw_feature_names"
+            ]
+        )
+
+        prediction = (
+            APP["trained_pipeline"]
+            .predict(
+                input_df
+            )
+        )
+
+        rows = [
+            [
+                "Prediction",
+                str(
+                    prediction[0]
+                )
+            ]
+        ]
+
+        if APP["task_type"] == "Classification":
+
+            try:
+
+                probabilities = (
+                    APP["trained_pipeline"]
+                    .predict_proba(
+                        input_df
+                    )[0]
+                )
+
+                classes = (
+                    APP["trained_pipeline"]
+                    .classes_
+                )
+
+                for cls, probability in zip(
+                    classes,
+                    probabilities
+                ):
+
+                    rows.append([
+                        f"Probability: {cls}",
+                        f"{probability * 100:.2f}%"
+                    ])
+
+            except Exception:
+
+                pass
+
+        result = pd.DataFrame(
+            rows,
+            columns=[
+                "Result",
+                "Value"
+            ]
+        )
+
+        APP["prediction_df"] = (
+            result.copy()
+        )
+
+        return (
+            result,
+            "Prediction completed successfully."
+        )
+
+    except Exception as error:
+
+        return (
+            pd.DataFrame(
+                columns=[
+                    "Result",
+                    "Value"
+                ]
+            ),
+            f"Prediction failed: {error}"
+        )
+
+
+# ============================================================
+# EXPLAINABILITY
+# ============================================================
+
+def explain_model(
+    method
+):
+
+    try:
+
+        if APP["trained_pipeline"] is None:
+
+            return (
+                pd.DataFrame(),
+                "Train a model first."
+            )
+
+        if method == "Feature Importance":
+
+            result = (
+                feature_importance_table()
+            )
+
+            APP["feature_importance"] = (
+                result
+            )
+
+            return (
+                result,
+                "Feature importance extracted from the trained model."
+            )
+
+        if method == "Permutation Importance":
+
+            result = (
+                permutation_feature_importance()
+            )
+
+            APP["feature_importance"] = (
+                result
+            )
+
+            return (
+                result,
+                "Permutation importance calculated on the test set."
+            )
+
+        if method == "Coefficients":
+
+            model = (
+                APP["trained_pipeline"]
+                .named_steps["model"]
+            )
+
+            if not hasattr(
+                model,
+                "coef_"
+            ):
+
+                return (
+                    pd.DataFrame(),
+                    "Selected model has no coefficients."
+                )
+
+            preprocessor = (
+                APP["trained_pipeline"]
+                .named_steps[
+                    "preprocessor"
+                ]
+            )
+
+            names = (
+                preprocessor
+                .get_feature_names_out()
+            )
+
+            coefficients = np.asarray(
+                model.coef_
+            )
+
+            if coefficients.ndim > 1:
+
+                values = np.mean(
+                    np.abs(
+                        coefficients
+                    ),
+                    axis=0
+                )
+
+            else:
+
+                values = np.abs(
+                    coefficients
+                )
+
+            result = (
+                pd.DataFrame({
+                    "Feature":
+                        names,
+
+                    "Coefficient Magnitude":
+                        values
+                })
+                .sort_values(
+                    "Coefficient Magnitude",
+                    ascending=False
+                )
+                .head(100)
+            )
+
+            return (
+                result.round(6),
+                "Coefficient magnitude calculated."
+            )
+
+        if method == "SHAP":
+
+            if not SHAP_AVAILABLE:
+
+                return (
+                    pd.DataFrame(),
+                    "SHAP is unavailable; the dashboard continues without it."
+                )
+
+            return (
+                shap_explain(),
+                "SHAP explanation generated."
+            )
+
+        return (
+            pd.DataFrame(),
+            "Select an explanation method."
+        )
+
+    except Exception as error:
+
+        return (
+            pd.DataFrame(),
+            f"Explainability failed: {error}"
+        )
+
+
+def shap_explain():
+
+    try:
+
+        model = APP[
+            "trained_model"
+        ]
+
+        X_test = APP[
+            "X_test"
+        ]
+
+        preprocessor = (
+            APP["trained_pipeline"]
+            .named_steps[
+                "preprocessor"
+            ]
+        )
+
+        transformed = (
+            preprocessor
+            .transform(
+                X_test.head(100)
+            )
+        )
+
+        names = (
+            preprocessor
+            .get_feature_names_out()
+        )
+
+        if hasattr(
+            model,
+            "feature_importances_"
+        ):
+
+            explainer = (
+                shap.TreeExplainer(
+                    model
+                )
+            )
+
+            shap_values = (
+                explainer.shap_values(
+                    transformed
+                )
+            )
+
+            array = np.asarray(
+                shap_values
+            )
+
+            if array.ndim == 3:
+
+                array = np.mean(
+                    np.abs(array),
+                    axis=0
+                )
+
+            else:
+
+                array = np.abs(
+                    array
+                )
+
+            values = np.mean(
+                array,
+                axis=0
+            )
+
+        else:
+
+            return (
+                permutation_feature_importance()
+            )
+
+        return (
+            pd.DataFrame({
+                "Feature": names,
+                "SHAP Mean Abs": values
+            })
+            .sort_values(
+                "SHAP Mean Abs",
+                ascending=False
+            )
+            .head(100)
+            .round(6)
+        )
+
+    except Exception as error:
+
+        raise ValueError(
+            "SHAP could not be generated "
+            f"for this model: {error}"
+        )
+
+
+# ============================================================
+# EXPORT CENTER
+# ============================================================
+
+def export_file(
+    export_type,
+    fmt
+):
+
+    try:
+
+        data = None
+
+        stem = (
+            export_type
+            .lower()
+            .replace(" ", "_")
+            .replace("-", "_")
+        )
+
+        if export_type == "Original Dataset":
+
+            data = APP[
+                "original_df"
+            ]
+
+        elif export_type == "Processed Dataset":
+
+            data = APP[
+                "processed_df"
+            ]
+
+        elif export_type == "Currently Viewed Dataset":
+
+            data = APP[
+                "viewed_df"
+            ]
+
+        elif export_type == "Statistics":
+
+            if (
+                not APP[
+                    "last_statistics"
+                ].empty
+            ):
+
+                data = APP[
+                    "last_statistics"
+                ]
+
+            else:
+
+                data = statistics_report(
+                    APP["processed_df"]
+                )
+
+        elif export_type == "Missing Value Report":
+
+            if (
+                not APP[
+                    "last_missing"
+                ].empty
+            ):
+
+                data = APP[
+                    "last_missing"
+                ]
+
+            else:
+
+                data = missing_report(
+                    APP["processed_df"]
+                )
+
+        elif export_type == "Duplicate Report":
+
+            if (
+                not APP[
+                    "last_duplicate"
+                ].empty
+            ):
+
+                data = APP[
+                    "last_duplicate"
+                ]
+
+            else:
+
+                data = duplicate_report(
+                    APP["processed_df"]
+                )
+
+        elif export_type == "Outlier Report":
+
+            if (
+                not APP[
+                    "last_outliers"
+                ].empty
+            ):
+
+                data = APP[
+                    "last_outliers"
+                ]
+
+            else:
+
+                data = outlier_report()[0]
+
+        elif export_type == "Data Quality Report":
+
+            if (
+                not APP[
+                    "last_quality"
+                ].empty
+            ):
+
+                data = APP[
+                    "last_quality"
+                ]
+
+            else:
+
+                data = quality_analysis()[0]
+
+        elif export_type == "Model Metrics":
+
+            data = APP[
+                "evaluation_metrics"
+            ]
+
+        elif export_type == "Model Comparison":
+
+            data = APP[
+                "model_results"
+            ]
+
+        elif export_type == "Prediction Result":
+
+            data = APP[
+                "prediction_df"
+            ]
+
+        elif export_type == "Feature Importance":
+
+            data = APP[
+                "feature_importance"
+            ]
+
+        elif export_type == "Cleaning Change Log":
+
+            data = pd.DataFrame(
+                APP[
+                    "cleaning_history"
+                ]
+            )
+
+        elif export_type == "Complete Analysis Summary":
+
+            processed = APP[
+                "processed_df"
+            ]
+
+            original = APP[
+                "original_df"
+            ]
+
+            data = pd.DataFrame([
+
+                [
+                    "File",
+                    APP["filename"]
+                ],
+
+                [
+                    "Rows Original",
+                    (
+                        len(original)
+                        if original is not None
+                        else 0
+                    )
+                ],
+
+                [
+                    "Rows Processed",
+                    (
+                        len(processed)
+                        if processed is not None
+                        else 0
+                    )
+                ],
+
+                [
+                    "Columns Processed",
+                    (
+                        processed.shape[1]
+                        if processed is not None
+                        else 0
+                    )
+                ],
+
+                [
+                    "Quality Score",
+                    (
+                        quality_score(
+                            processed
+                        )
+                        if processed is not None
+                        else 0
+                    )
+                ],
+
+                [
+                    "Missing Values",
+                    (
+                        total_missing(
+                            processed
+                        )
+                        if processed is not None
+                        else 0
+                    )
+                ],
+
+                [
+                    "Duplicates",
+                    (
+                        duplicate_count(
+                            processed
+                        )
+                        if processed is not None
+                        else 0
+                    )
+                ],
+
+                [
+                    "Target",
+                    APP[
+                        "target_column"
+                    ]
+                    or ""
+                ],
+
+                [
+                    "Task",
+                    APP[
+                        "task_type"
+                    ]
+                    or ""
+                ]
+
+            ], columns=[
+                "Metric",
+                "Value"
+            ])
+
+        if data is None:
+
+            return (
+                None,
+                "No data is available for this export."
+            )
+
+        if isinstance(
+            data,
+            pd.Series
+        ):
+
+            data = data.to_frame()
+
+        if data.empty:
+
+            return (
+                None,
+                "No data is available for this export."
+            )
+
+        path = write_df(
+            data,
+            stem,
+            fmt
+        )
+
+        if path is None:
+
+            return (
+                None,
+                "Could not create the download file."
+            )
+
+        return (
+            path,
+            f"Download ready: {os.path.basename(path)}"
+        )
+
+    except Exception as error:
+
+        return (
+            None,
+            f"Export failed: {error}"
+        )
+
+
+# ============================================================
+# RESET DASHBOARD
+# ============================================================
+
+def reset_all():
+
+    clear_state()
+
+    return (
+        "Dashboard reset. Upload a dataset to begin.",
+
+        "<div class='notice'>No dataset loaded.</div>",
+
+        pd.DataFrame(),
+
+        pd.DataFrame(),
+
+        [],
+
+        [],
+
+        [],
+
+        [],
+
+        [],
+
+        [],
+
+        [],
+
+        [],
+
+        "No dataset loaded."
+    )
+
+
+# ============================================================
+# PROFESSIONAL CSS
+# ============================================================
+
+CSS = """
+
+@import url(
+'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap'
+);
+
+:root {
+
+    --navy: #102a43;
+    --blue: #2563eb;
+    --cyan: #0891b2;
+    --teal: #0f766e;
+    --green: #16a34a;
+    --amber: #d97706;
+    --red: #dc2626;
+
+    --background: #eef5fb;
+    --card: #ffffff;
+    --border: #d8e3ef;
+
+    --text: #1e293b;
+    --muted: #64748b;
+}
+
+body,
+.gradio-container {
+
+    background:
+        linear-gradient(
+            135deg,
+            #eef5fb 0%,
+            #f8fbff 55%,
+            #eef7ff 100%
+        ) !important;
+
+    color:
+        var(--text) !important;
+
+    font-family:
+        'DM Sans',
+        Arial,
+        sans-serif !important;
+}
+
+.gradio-container {
+
+    max-width:
+        1500px !important;
+
+    margin:
+        auto !important;
+}
+
+.header {
+
+    padding:
+        24px 28px !important;
+
+    border-radius:
+        20px !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #102a43,
+            #1d4ed8
+        ) !important;
+
+    color:
+        white !important;
+
+    box-shadow:
+        0 10px 30px
+        rgba(
+            16,
+            42,
+            67,
+            .18
+        );
+
+    margin-bottom:
+        16px !important;
+}
+
+.header h1 {
+
+    margin:
+        0;
+
+    font-size:
+        30px !important;
+
+    color:
+        white !important;
+}
+
+.header p {
+
+    margin:
+        5px 0 0;
+
+    color:
+        #dbeafe !important;
+}
+
+.kpi-grid {
+
+    display:
+        grid;
+
+    grid-template-columns:
+        repeat(
+            8,
+            minmax(
+                100px,
+                1fr
+            )
+        );
+
+    gap:
+        10px;
+
+    margin:
+        4px 0 10px;
+}
+
+.kpi {
+
+    background:
+        white;
+
+    border:
+        1px solid
+        var(--border);
+
+    border-radius:
+        13px;
+
+    padding:
+        12px 13px;
+
+    box-shadow:
+        0 4px 12px
+        rgba(
+            15,
+            42,
+            67,
+            .05
+        );
+}
+
+.kpi span {
+
+    font-size:
+        12px;
+
+    color:
+        var(--muted);
+
+    display:
+        block;
+}
+
+.kpi b {
+
+    font-size:
+        22px;
+
+    color:
+        var(--navy);
+
+    display:
+        block;
+
+    margin-top:
+        3px;
+
+    overflow:
+        hidden;
+
+    text-overflow:
+        ellipsis;
+
+    white-space:
+        nowrap;
+}
+
+.k1 {
+    border-top:
+        4px solid #2563eb;
+}
+
+.k2 {
+    border-top:
+        4px solid #7c3aed;
+}
+
+.k3 {
+    border-top:
+        4px solid #0891b2;
+}
+
+.k4 {
+    border-top:
+        4px solid #0f766e;
+}
+
+.k5 {
+    border-top:
+        4px solid #d97706;
+}
+
+.k6 {
+    border-top:
+        4px solid #dc2626;
+}
+
+.k7 {
+    border-top:
+        4px solid #16a34a;
+}
+
+.k8 {
+    border-top:
+        4px solid #334155;
+}
+
+.quality-box {
+
+    display:
+        flex;
+
+    align-items:
+        center;
+
+    gap:
+        18px;
+
+    padding:
+        16px;
+
+    border-radius:
+        14px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #eff6ff,
+            #ecfeff
+        );
+
+    border:
+        1px solid
+        #cfe1f5;
+
+    margin-bottom:
+        10px;
+}
+
+.quality-number {
+
+    font-size:
+        34px;
+
+    font-weight:
+        700;
+
+    color:
+        #1d4ed8;
+}
+
+.notice {
+
+    padding:
+        12px 14px;
+
+    border-radius:
+        10px;
+
+    background:
+        #eff6ff;
+
+    border:
+        1px solid
+        #bfdbfe;
+
+    color:
+        #1e40af;
+}
+
+.error {
+
+    padding:
+        12px 14px;
+
+    border-radius:
+        10px;
+
+    background:
+        #fef2f2;
+
+    border:
+        1px solid
+        #fecaca;
+
+    color:
+        #991b1b;
+}
+
+button.primary {
+
+    background:
+        linear-gradient(
+            135deg,
+            #2563eb,
+            #0891b2
+        ) !important;
+
+    color:
+        white !important;
+
+    border:
+        0 !important;
+}
+
+button.secondary {
+
+    background:
+        #eaf2ff !important;
+
+    color:
+        #1e40af !important;
+}
+
+button.danger {
+
+    background:
+        #fee2e2 !important;
+
+    color:
+        #991b1b !important;
+}
+
+textarea,
+input,
+select {
+
+    border-radius:
+        10px !important;
+
+    border-color:
+        #cbd5e1 !important;
+}
+
+.gradio-tab-nav {
+
+    overflow-x:
+        auto !important;
+
+    white-space:
+        nowrap !important;
+}
+
+.gradio-tab-nav button {
+
+    font-weight:
+        600 !important;
+}
+
+.dataframe {
+
+    border-radius:
+        12px !important;
+
+    overflow:
+        hidden !important;
+}
+
+footer {
+
+    display:
+        none !important;
+}
+
+@media(max-width:1000px) {
+
+    .kpi-grid {
+
+        grid-template-columns:
+            repeat(
+                4,
+                minmax(
+                    100px,
+                    1fr
+                )
+            );
+    }
+}
+
+@media(max-width:650px) {
+
+    .kpi-grid {
+
+        grid-template-columns:
+            repeat(
+                2,
+                minmax(
+                    100px,
+                    1fr
+                )
+            );
+    }
+}
+
+"""
+
+
+# ============================================================
+# GRADIO APPLICATION
+# ============================================================
+
+with gr.Blocks(
+    title="AI & ML Analytics Studio",
+    css=CSS,
+    theme=gr.themes.Soft()
+) as app:
+
+    gr.HTML("""
+    <div class="header">
+
+        <h1>
+            AI & ML Analytics Studio
+        </h1>
+
+        <p>
+            Data analysis, cleaning, visualization,
+            healthcare-aware validation and machine learning.
+        </p>
+
     </div>
-    """,
-    unsafe_allow_html=True,
+    """)
+
+    status = gr.Markdown(
+        "Upload a CSV, XLSX, or XLS dataset to begin."
+    )
+
+
+    # ========================================================
+    # OVERVIEW
+    # ========================================================
+
+    with gr.Tab("Overview"):
+
+        with gr.Row():
+
+            upload = gr.File(
+                label="Upload Dataset",
+                file_types=[
+                    ".csv",
+                    ".xlsx",
+                    ".xls"
+                ],
+                type="filepath"
+            )
+
+            reset_all_btn = gr.Button(
+                "Reset Dashboard",
+                variant="stop"
+            )
+
+        overview = gr.HTML(
+            "<div class='notice'>"
+            "No dataset loaded."
+            "</div>"
+        )
+
+        with gr.Row():
+
+            original_preview = gr.Dataframe(
+                label="Original Dataset Preview",
+                interactive=False
+            )
+
+            overview_info = gr.Dataframe(
+                label="Column Information",
+                interactive=False
+            )
+
+
+    # ========================================================
+    # VIEWER
+    # ========================================================
+
+    with gr.Tab("Viewer"):
+
+        with gr.Row():
+
+            viewer_dataset = gr.Dropdown(
+                [
+                    "Original",
+                    "Processed"
+                ],
+                value="Processed",
+                label="Dataset"
+            )
+
+            viewer_type = gr.Dropdown(
+                [
+                    "Head",
+                    "Tail",
+                    "Random",
+                    "Entire Dataset",
+                    "Custom Range"
+                ],
+                value="Head",
+                label="View"
+            )
+
+            viewer_rows = gr.Dropdown(
+                [
+                    10,
+                    20,
+                    50,
+                    100,
+                    147,
+                    500
+                ],
+                value=50,
+                label="Rows"
+            )
+
+        with gr.Row(
+            visible=False
+        ) as custom_range_row:
+
+            viewer_start = gr.Number(
+                value=0,
+                precision=0,
+                label="Start"
+            )
+
+            viewer_end = gr.Number(
+                value=147,
+                precision=0,
+                label="End"
+            )
+
+        with gr.Row():
+
+            viewer_search = gr.Textbox(
+                label="Search Dataset",
+                placeholder=(
+                    "Search any value across all columns"
+                )
+            )
+
+            clear_search_btn = gr.Button(
+                "Clear Search",
+                variant="secondary"
+            )
+
+        viewer_info = gr.Markdown(
+            "No dataset loaded."
+        )
+
+        viewer_table = gr.Dataframe(
+            label="Dataset Viewer",
+            interactive=False
+        )
+
+
+    # ========================================================
+    # STATISTICS
+    # ========================================================
+
+    with gr.Tab("Statistics"):
+
+        with gr.Row():
+
+            stat_cols = gr.Dropdown(
+                multiselect=True,
+                label="Numerical Columns"
+            )
+
+            percentile = gr.Slider(
+                1,
+                99,
+                value=50,
+                step=1,
+                label="Percentile"
+            )
+
+            stat_btn = gr.Button(
+                "Calculate Statistics",
+                variant="primary"
+            )
+
+        stat_status = gr.Markdown()
+
+        stat_table = gr.Dataframe(
+            label="Statistical Summary",
+            interactive=False
+        )
+
+
+    # ========================================================
+    # QUALITY
+    # ========================================================
+
+    with gr.Tab("Quality"):
+
+        quality_btn = gr.Button(
+            "Refresh Data Quality",
+            variant="primary"
+        )
+
+        quality_score_html = gr.HTML()
+
+        with gr.Row():
+
+            quality_table = gr.Dataframe(
+                label="Data Quality Findings",
+                interactive=False
+            )
+
+            healthcare_table = gr.Dataframe(
+                label="Healthcare-Aware Validation Warnings",
+                interactive=False
+            )
+
+        unique_table = gr.Dataframe(
+            label="Unique Value Analysis",
+            interactive=False
+        )
+
+
+    # ========================================================
+    # CLEANING
+    # ========================================================
+
+    with gr.Tab("Cleaning"):
+
+        gr.Markdown(
+            "## Data Cleaning Studio"
+        )
+
+        gr.Markdown(
+            "Select one operation, preview it, then apply it. "
+            "The original dataset is never overwritten."
+        )
+
+        with gr.Row():
+
+            clean_operation = gr.Dropdown(
+                [
+                    "Drop rows",
+                    "Drop columns",
+                    "Drop columns above selected %",
+                    "Mean imputation",
+                    "Median imputation",
+                    "Mode imputation",
+                    "Constant value",
+                    "Forward fill",
+                    "Backward fill",
+                    "Interpolation",
+                    "Remove exact duplicates",
+                    "Strip whitespace",
+                    "Lowercase",
+                    "Uppercase",
+                    "Title case",
+                    "Replace values",
+                    "Convert numeric",
+                    "Convert category",
+                    "Convert date",
+                    "Replace negative numeric values",
+                    "Replace infinite values",
+                    "Replace empty strings",
+                    "Replace common null strings",
+                    "IQR remove",
+                    "IQR cap",
+                    "Z-score remove",
+                    "Z-score cap"
+                ],
+                label="Cleaning Operation",
+                value="Remove exact duplicates"
+            )
+
+            clean_apply_to = gr.Dropdown(
+                [
+                    "Entire Dataset",
+                    "Selected Column"
+                ],
+                value="Entire Dataset",
+                label="Apply To"
+            )
+
+            clean_column = gr.Dropdown(
+                label="Column",
+                visible=False
+            )
+
+        with gr.Row():
+
+            clean_constant = gr.Textbox(
+                label="Constant Value",
+                visible=False
+            )
+
+            clean_replace_from = gr.Textbox(
+                label="Replace From",
+                visible=False
+            )
+
+            clean_replace_to = gr.Textbox(
+                label="Replace To",
+                visible=False
+            )
+
+            clean_threshold = gr.Number(
+                value=50,
+                label="Missing % Threshold",
+                visible=False
+            )
+
+            clean_z = gr.Number(
+                value=3,
+                label="Z-score Threshold",
+                visible=False
+            )
+
+        with gr.Row():
+
+            preview_clean_btn = gr.Button(
+                "Preview Change",
+                variant="secondary"
+            )
+
+            apply_clean_btn = gr.Button(
+                "Apply Cleaning",
+                variant="primary"
+            )
+
+            reset_clean_btn = gr.Button(
+                "Reset to Original",
+                variant="stop"
+            )
+
+        clean_status = gr.Markdown()
+
+        with gr.Row():
+
+            clean_before = gr.Dataframe(
+                label="Before Cleaning",
+                interactive=False
+            )
+
+            clean_after = gr.Dataframe(
+                label="Preview / After Cleaning",
+                interactive=False
+            )
+
+        clean_what = gr.Markdown()
+
+        clean_comparison = gr.Dataframe(
+            label="Before / After Comparison",
+            interactive=False
+        )
+
+        clean_history = gr.Dataframe(
+            label="Cleaning Change Log",
+            interactive=False
+        )
+
+
+    # ========================================================
+    # EDA
+    # ========================================================
+
+    with gr.Tab("EDA"):
+
+        with gr.Row():
+
+            graph_type = gr.Dropdown(
+                [
+                    "Histogram",
+                    "KDE",
+                    "Box",
+                    "Violin",
+                    "Count",
+                    "Bar",
+                    "Pie",
+                    "Scatter",
+                    "Line",
+                    "Area",
+                    "Correlation",
+                    "Covariance",
+                    "Pair Plot",
+                    "Q-Q",
+                    "ECDF",
+                    "Time Series",
+                    "Missing",
+                    "3D Scatter"
+                ],
+                value="Histogram",
+                label="Graph"
+            )
+
+            graph_x = gr.Dropdown(
+                label="X"
+            )
+
+            graph_y = gr.Dropdown(
+                label="Y",
+                visible=False
+            )
+
+            graph_z = gr.Dropdown(
+                label="Z",
+                visible=False
+            )
+
+            graph_hue = gr.Dropdown(
+                label="Hue",
+                visible=False,
+                allow_custom_value=True
+            )
+
+            graph_btn = gr.Button(
+                "Generate Graph",
+                variant="primary"
+            )
+
+        graph_plot = gr.Plot(
+            label="Visualization"
+        )
+
+        graph_status = gr.Markdown()
+
+
+    # ========================================================
+    # TARGET
+    # ========================================================
+
+    with gr.Tab("Target"):
+
+        with gr.Row():
+
+            target_col = gr.Dropdown(
+                label="Target Column"
+            )
+
+            target_task = gr.Radio(
+                [
+                    "Classification",
+                    "Regression"
+                ],
+                value="Classification",
+                label="Task"
+            )
+
+            target_btn = gr.Button(
+                "Analyze Target",
+                variant="primary"
+            )
+
+        with gr.Row():
+
+            target_table = gr.Dataframe(
+                label="Target Analysis",
+                interactive=False
+            )
+
+            target_plot = gr.Plot(
+                label="Target Distribution"
+            )
+
+        target_status = gr.Markdown()
+
+
+    # ========================================================
+    # FEATURES
+    # ========================================================
+
+    with gr.Tab("Features"):
+
+        with gr.Row():
+
+            feat_operation = gr.Dropdown(
+                [
+                    "Log",
+                    "Square",
+                    "Square root",
+                    "Standardization",
+                    "MinMax",
+                    "Robust scaling",
+                    "One-hot encoding",
+                    "Ordinal encoding",
+                    "Frequency encoding",
+                    "Variance filtering",
+                    "Correlation filtering",
+                    "SelectKBest",
+                    "PCA"
+                ],
+                value="Log",
+                label="Feature Engineering"
+            )
+
+            feat_cols = gr.Dropdown(
+                multiselect=True,
+                label="Columns"
+            )
+
+            feat_k = gr.Number(
+                value=5,
+                precision=0,
+                label="K / Threshold"
+            )
+
+            feat_btn = gr.Button(
+                "Apply Feature Engineering",
+                variant="primary"
+            )
+
+        feat_status = gr.Markdown()
+
+        feat_table = gr.Dataframe(
+            label="Feature-Engineered Preview",
+            interactive=False
+        )
+
+
+    # ========================================================
+    # TRAINING
+    # ========================================================
+
+    with gr.Tab("Training"):
+
+        with gr.Row():
+
+            train_task = gr.Radio(
+                [
+                    "Classification",
+                    "Regression"
+                ],
+                value="Classification",
+                label="Task"
+            )
+
+            train_target = gr.Dropdown(
+                label="Target"
+            )
+
+            train_model_name = gr.Dropdown(
+                (
+                    [
+                        "Logistic Regression",
+                        "KNN",
+                        "Naive Bayes",
+                        "Decision Tree",
+                        "Random Forest",
+                        "SVM",
+                        "Gradient Boosting"
+                    ]
+                    +
+                    (
+                        ["XGBoost"]
+                        if XGB_AVAILABLE
+                        else []
+                    )
+                ),
+                value="Random Forest",
+                label="Model"
+            )
+
+        with gr.Row():
+
+            train_test = gr.Slider(
+                .1,
+                .4,
+                value=.2,
+                step=.05,
+                label="Test Size"
+            )
+
+            train_scaling = gr.Dropdown(
+                [
+                    "Standard",
+                    "MinMax",
+                    "Robust",
+                    "None"
+                ],
+                value="Standard",
+                label="Scaling"
+            )
+
+            train_encoding = gr.Dropdown(
+                [
+                    "One-Hot",
+                    "Ordinal"
+                ],
+                value="One-Hot",
+                label="Encoding"
+            )
+
+            train_cv = gr.Dropdown(
+                [
+                    3,
+                    5,
+                    10
+                ],
+                value=5,
+                label="CV Folds"
+            )
+
+        train_btn = gr.Button(
+            "Train Model",
+            variant="primary"
+        )
+
+        train_status = gr.Markdown()
+
+        train_metrics = gr.Dataframe(
+            label="Initial Evaluation Metrics",
+            interactive=False
+        )
+
+        train_importance = gr.Dataframe(
+            label="Feature Importance",
+            interactive=False
+        )
+
+        train_prediction_template = gr.Dataframe(
+            label="Prediction Input — exactly two columns",
+            headers=[
+                "Feature",
+                "Value"
+            ],
+            datatype=[
+                "str",
+                "str"
+            ],
+            column_count=(2, 2),
+            interactive=True
+        )
+
+
+    # ========================================================
+    # EVALUATION
+    # ========================================================
+
+    with gr.Tab("Evaluation"):
+
+        with gr.Row():
+
+            eval_kind = gr.Dropdown(
+                [
+                    "Confusion Matrix",
+                    "ROC",
+                    "Precision-Recall",
+                    "Actual vs Predicted",
+                    "Residuals"
+                ],
+                value="Confusion Matrix",
+                label="Evaluation Plot"
+            )
+
+            eval_btn = gr.Button(
+                "Generate Evaluation",
+                variant="primary"
+            )
+
+        eval_plot = gr.Plot()
+
+        eval_status = gr.Markdown()
+
+        eval_metrics = gr.Dataframe(
+            label="Evaluation Metrics",
+            interactive=False
+        )
+
+
+    # ========================================================
+    # MODEL COMPARISON
+    # ========================================================
+
+    with gr.Tab("Comparison"):
+
+        with gr.Row():
+
+            compare_btn = gr.Button(
+                "Compare Models",
+                variant="primary"
+            )
+
+            cv_folds = gr.Dropdown(
+                [
+                    3,
+                    5,
+                    10
+                ],
+                value=5,
+                label="Cross-Validation Folds"
+            )
+
+            cv_btn = gr.Button(
+                "Run Cross-Validation",
+                variant="secondary"
+            )
+
+        compare_table = gr.Dataframe(
+            label="Model Leaderboard",
+            interactive=False
+        )
+
+        compare_status = gr.Markdown()
+
+        cv_table = gr.Dataframe(
+            label="Cross-Validation Results",
+            interactive=False
+        )
+
+        cv_status = gr.Markdown()
+
+
+    # ========================================================
+    # TUNING
+    # ========================================================
+
+    with gr.Tab("Tuning"):
+
+        with gr.Row():
+
+            tune_search = gr.Dropdown(
+                [
+                    "GridSearchCV",
+                    "RandomizedSearchCV"
+                ],
+                value="GridSearchCV",
+                label="Search"
+            )
+
+            tune_task = gr.Radio(
+                [
+                    "Classification",
+                    "Regression"
+                ],
+                value="Classification",
+                label="Task"
+            )
+
+            tune_target = gr.Dropdown(
+                label="Target"
+            )
+
+            tune_model_choice = gr.Dropdown(
+                label="Model"
+            )
+
+            tune_folds = gr.Dropdown(
+                [
+                    3,
+                    5,
+                    10
+                ],
+                value=3,
+                label="CV Folds"
+            )
+
+            tune_btn = gr.Button(
+                "Tune Model",
+                variant="primary"
+            )
+
+        tune_table = gr.Dataframe(
+            label="Tuning Results",
+            interactive=False
+        )
+
+        tune_best = gr.Textbox(
+            label="Best Parameters"
+        )
+
+        tune_status = gr.Markdown()
+
+
+    # ========================================================
+    # PREDICTION
+    # ========================================================
+
+    with gr.Tab("Prediction"):
+
+        gr.Markdown(
+            "After training, edit the Value column only. "
+            "The Feature column is fixed to the training feature order."
+        )
+
+        prediction_input = gr.Dataframe(
+            headers=[
+                "Feature",
+                "Value"
+            ],
+            datatype=[
+                "str",
+                "str"
+            ],
+            column_count=(2, 2),
+            label="Prediction Input",
+            interactive=True
+        )
+
+        predict_btn = gr.Button(
+            "Predict",
+            variant="primary"
+        )
+
+        prediction_output = gr.Dataframe(
+            headers=[
+                "Result",
+                "Value"
+            ],
+            datatype=[
+                "str",
+                "str"
+            ],
+            column_count=(2, 2),
+            label="Prediction Result",
+            interactive=False
+        )
+
+        prediction_status = gr.Markdown()
+
+
+    # ========================================================
+    # EXPLAINABILITY
+    # ========================================================
+
+    with gr.Tab("Explainability"):
+
+        with gr.Row():
+
+            explain_method = gr.Dropdown(
+                [
+                    "Feature Importance",
+                    "Permutation Importance",
+                    "Coefficients",
+                    "SHAP"
+                ],
+                value="Feature Importance",
+                label="Method"
+            )
+
+            explain_btn = gr.Button(
+                "Explain Model",
+                variant="primary"
+            )
+
+        explain_table = gr.Dataframe(
+            label="Explainability Results",
+            interactive=False
+        )
+
+        explain_status = gr.Markdown()
+
+
+    # ========================================================
+    # EXPORT
+    # ========================================================
+
+    with gr.Tab("Export"):
+
+        with gr.Row():
+
+            export_type = gr.Dropdown(
+                [
+                    "Original Dataset",
+                    "Processed Dataset",
+                    "Currently Viewed Dataset",
+                    "Statistics",
+                    "Missing Value Report",
+                    "Duplicate Report",
+                    "Outlier Report",
+                    "Data Quality Report",
+                    "Model Metrics",
+                    "Model Comparison",
+                    "Prediction Result",
+                    "Feature Importance",
+                    "Cleaning Change Log",
+                    "Complete Analysis Summary"
+                ],
+                value="Processed Dataset",
+                label="Export Type"
+            )
+
+            export_format = gr.Radio(
+                [
+                    "CSV",
+                    "Excel"
+                ],
+                value="CSV",
+                label="Format"
+            )
+
+            export_btn = gr.Button(
+                "Generate Download",
+                variant="primary"
+            )
+
+        export_file_out = gr.File(
+            label="Generated File",
+            interactive=False
+        )
+
+        export_status = gr.Markdown()
+
+
+    # ========================================================
+    # EVENT WIRING
+    # ========================================================
+
+    upload_outputs = [
+        status,
+        overview,
+        original_preview,
+        overview_info,
+        stat_cols,
+        feat_cols,
+        graph_x,
+        graph_y,
+        target_col,
+        train_target,
+        tune_target
+    ]
+
+
+    upload.upload(
+        load_dataset,
+        inputs=[upload],
+        outputs=upload_outputs
+    )
+
+
+    def refresh_choices():
+
+        if APP["processed_df"] is not None:
+
+            columns = (
+                APP["processed_df"]
+                .columns
+                .tolist()
+            )
+
+            numerical = (
+                numeric_cols(
+                    APP["processed_df"]
+                )
+            )
+
+        else:
+
+            columns = []
+            numerical = []
+
+        return (
+
+            gr.update(
+                choices=columns,
+                value=(
+                    columns[0]
+                    if columns
+                    else None
+                )
+            ),
+
+            gr.update(
+                choices=columns,
+                value=None
+            ),
+
+            gr.update(
+                choices=columns,
+                value=(
+                    columns[0]
+                    if columns
+                    else None
+                )
+            ),
+
+            gr.update(
+                choices=columns,
+                value=(
+                    columns[0]
+                    if columns
+                    else None
+                )
+            ),
+
+            gr.update(
+                choices=columns,
+                value=(
+                    columns[0]
+                    if columns
+                    else None
+                )
+            ),
+
+            gr.update(
+                choices=numerical,
+                value=(
+                    numerical[:1]
+                )
+            ),
+
+            gr.update(
+                choices=columns,
+                value=columns[:1]
+            )
+        )
+
+
+    upload.upload(
+        refresh_choices,
+        inputs=[],
+        outputs=[
+            clean_column,
+            graph_hue,
+            target_col,
+            train_target,
+            tune_target,
+            stat_cols,
+            feat_cols
+        ]
+    )
+
+
+    # ========================================================
+    # VIEWER EVENTS
+    # ========================================================
+
+    viewer_type.change(
+        update_view_controls,
+        inputs=[
+            viewer_type
+        ],
+        outputs=[
+            viewer_rows,
+            custom_range_row,
+            viewer_info
+        ]
+    )
+
+
+    for component in [
+        viewer_dataset,
+        viewer_type,
+        viewer_rows,
+        viewer_start,
+        viewer_end,
+        viewer_search
+    ]:
+
+        component.change(
+            make_view,
+            inputs=[
+                viewer_dataset,
+                viewer_type,
+                viewer_rows,
+                viewer_start,
+                viewer_end,
+                viewer_search
+            ],
+            outputs=[
+                viewer_table,
+                viewer_info
+            ]
+        )
+
+
+    clear_search_btn.click(
+        clear_search,
+        inputs=[
+            viewer_dataset,
+            viewer_type,
+            viewer_rows,
+            viewer_start,
+            viewer_end
+        ],
+        outputs=[
+            viewer_table,
+            viewer_info
+        ]
+    )
+
+
+    # ========================================================
+    # STATISTICS EVENTS
+    # ========================================================
+
+    stat_btn.click(
+        run_statistics,
+        inputs=[
+            stat_cols,
+            percentile
+        ],
+        outputs=[
+            stat_table,
+            stat_status
+        ]
+    )
+
+
+    # ========================================================
+    # QUALITY EVENTS
+    # ========================================================
+
+    quality_btn.click(
+        quality_analysis,
+        inputs=[],
+        outputs=[
+            quality_table,
+            quality_score_html,
+            healthcare_table,
+            unique_table
+        ]
+    )
+
+
+    # ========================================================
+    # CLEANING EVENTS
+    # ========================================================
+
+    clean_operation.change(
+        clean_ui_state,
+        inputs=[
+            clean_operation,
+            clean_apply_to
+        ],
+        outputs=[
+            clean_column,
+            clean_constant,
+            clean_replace_from,
+            clean_replace_to,
+            clean_threshold,
+            clean_z
+        ]
+    )
+
+
+    clean_apply_to.change(
+        clean_ui_state,
+        inputs=[
+            clean_operation,
+            clean_apply_to
+        ],
+        outputs=[
+            clean_column,
+            clean_constant,
+            clean_replace_from,
+            clean_replace_to,
+            clean_threshold,
+            clean_z
+        ]
+    )
+
+
+    preview_clean_btn.click(
+        cleaning_before_preview,
+        inputs=[
+            clean_operation,
+            clean_apply_to,
+            clean_column,
+            clean_constant,
+            clean_replace_from,
+            clean_replace_to,
+            clean_threshold,
+            clean_z
+        ],
+        outputs=[
+            clean_before,
+            clean_after,
+            clean_what,
+            clean_comparison
+        ]
+    )
+
+
+    apply_clean_btn.click(
+        apply_cleaning,
+        inputs=[
+            clean_operation,
+            clean_apply_to,
+            clean_column,
+            clean_constant,
+            clean_replace_from,
+            clean_replace_to,
+            clean_threshold,
+            clean_z
+        ],
+        outputs=[
+            clean_after,
+            overview,
+            clean_comparison,
+            clean_history,
+            clean_status
+        ]
+    )
+
+
+    reset_clean_btn.click(
+        reset_cleaning,
+        inputs=[],
+        outputs=[
+            clean_after,
+            overview,
+            clean_comparison,
+            clean_history,
+            clean_status
+        ]
+    )
+
+
+    # ========================================================
+    # EDA EVENTS
+    # ========================================================
+
+    graph_type.change(
+        graph_controls,
+        inputs=[
+            graph_type
+        ],
+        outputs=[
+            graph_x,
+            graph_y,
+            graph_z,
+            graph_hue
+        ]
+    )
+
+
+    graph_btn.click(
+        plot_eda,
+        inputs=[
+            graph_type,
+            graph_x,
+            graph_y,
+            graph_z,
+            graph_hue
+        ],
+        outputs=[
+            graph_plot,
+            graph_status
+        ]
+    )
+
+
+    # ========================================================
+    # TARGET EVENTS
+    # ========================================================
+
+    target_btn.click(
+        target_analysis,
+        inputs=[
+            target_col,
+            target_task
+        ],
+        outputs=[
+            target_table,
+            target_plot,
+            target_status
+        ]
+    )
+
+
+    # ========================================================
+    # FEATURE EVENTS
+    # ========================================================
+
+    feat_btn.click(
+        feature_engineering,
+        inputs=[
+            feat_operation,
+            feat_cols,
+            feat_k
+        ],
+        outputs=[
+            feat_table,
+            feat_status
+        ]
+    )
+
+
+    # ========================================================
+    # TRAINING MODEL OPTIONS
+    # ========================================================
+
+    def train_model_choices(
+        task
+    ):
+
+        if task == "Classification":
+
+            choices = [
+                "Logistic Regression",
+                "KNN",
+                "Naive Bayes",
+                "Decision Tree",
+                "Random Forest",
+                "SVM",
+                "Gradient Boosting"
+            ]
+
+            if XGB_AVAILABLE:
+
+                choices.append(
+                    "XGBoost"
+                )
+
+            return gr.update(
+                choices=choices,
+                value="Random Forest"
+            )
+
+        choices = [
+            "Linear Regression",
+            "Polynomial Regression",
+            "Ridge",
+            "Lasso",
+            "Decision Tree",
+            "Random Forest",
+            "SVR",
+            "Gradient Boosting"
+        ]
+
+        if XGB_AVAILABLE:
+
+            choices.append(
+                "XGBoost"
+            )
+
+        return gr.update(
+            choices=choices,
+            value="Random Forest"
+        )
+
+
+    train_task.change(
+        train_model_choices,
+        inputs=[
+            train_task
+        ],
+        outputs=[
+            train_model_name
+        ]
+    )
+
+
+    train_btn.click(
+        train_model,
+        inputs=[
+            train_task,
+            train_target,
+            train_model_name,
+            train_test,
+            train_scaling,
+            train_encoding,
+            train_cv
+        ],
+        outputs=[
+            train_metrics,
+            train_importance,
+            train_prediction_template,
+            compare_table,
+            train_status
+        ]
+    )
+
+
+    # ========================================================
+    # EVALUATION EVENTS
+    # ========================================================
+
+    eval_btn.click(
+        evaluation_plot,
+        inputs=[
+            eval_kind
+        ],
+        outputs=[
+            eval_plot,
+            eval_status
+        ]
+    )
+
+
+    eval_btn.click(
+        lambda:
+            APP["evaluation_metrics"],
+        inputs=[],
+        outputs=[
+            eval_metrics
+        ]
+    )
+
+
+    # ========================================================
+    # COMPARISON EVENTS
+    # ========================================================
+
+    def compare_current_models():
+
+        if APP["trained_model"] is None:
+
+            return (
+                pd.DataFrame(),
+                "Train a model first."
+            )
+
+        result = run_model_comparison(
+            APP["task_type"],
+            APP["target_column"],
+            .2,
+            "Standard",
+            "One-Hot",
+            5,
+            ""
+        )
+
+        APP["model_results"] = (
+            result.copy()
+            if isinstance(
+                result,
+                pd.DataFrame
+            )
+            else pd.DataFrame()
+        )
+
+        return (
+            result,
+            "Model comparison complete."
+        )
+
+
+    compare_btn.click(
+        compare_current_models,
+        inputs=[],
+        outputs=[
+            compare_table,
+            compare_status
+        ]
+    )
+
+
+    cv_btn.click(
+        run_cross_validation,
+        inputs=[
+            cv_folds
+        ],
+        outputs=[
+            cv_table,
+            cv_status
+        ]
+    )
+
+
+    # ========================================================
+    # TUNING MODEL OPTIONS
+    # ========================================================
+
+    def tuning_model_choices(
+        task
+    ):
+
+        if task == "Classification":
+
+            choices = [
+                "Logistic Regression",
+                "Decision Tree",
+                "Random Forest"
+            ]
+
+            if XGB_AVAILABLE:
+
+                choices.append(
+                    "XGBoost"
+                )
+
+        else:
+
+            choices = [
+                "Ridge",
+                "Lasso",
+                "Decision Tree",
+                "Random Forest"
+            ]
+
+            if XGB_AVAILABLE:
+
+                choices.append(
+                    "XGBoost"
+                )
+
+        return gr.update(
+            choices=choices,
+            value=choices[0]
+        )
+
+
+    tune_task.change(
+        tuning_model_choices,
+        inputs=[
+            tune_task
+        ],
+        outputs=[
+            tune_model_choice
+        ]
+    )
+
+
+    tune_btn.click(
+        tune_model,
+        inputs=[
+            tune_search,
+            tune_task,
+            tune_target,
+            tune_model_choice,
+            tune_folds
+        ],
+        outputs=[
+            tune_table,
+            tune_best,
+            tune_status
+        ]
+    )
+
+
+    # ========================================================
+    # PREDICTION EVENTS
+    # ========================================================
+
+    predict_btn.click(
+        predict_from_table,
+        inputs=[
+            prediction_input
+        ],
+        outputs=[
+            prediction_output,
+            prediction_status
+        ]
+    )
+
+
+    # ========================================================
+    # EXPLAINABILITY EVENTS
+    # ========================================================
+
+    explain_btn.click(
+        explain_model,
+        inputs=[
+            explain_method
+        ],
+        outputs=[
+            explain_table,
+            explain_status
+        ]
+    )
+
+
+    # ========================================================
+    # EXPORT EVENTS
+    # ========================================================
+
+    export_btn.click(
+        export_file,
+        inputs=[
+            export_type,
+            export_format
+        ],
+        outputs=[
+            export_file_out,
+            export_status
+        ]
+    )
+
+
+    # ========================================================
+    # COMPLETE DASHBOARD RESET
+    # ========================================================
+
+    reset_all_btn.click(
+        reset_all,
+        inputs=[],
+        outputs=[
+            status,
+            overview,
+            original_preview,
+            overview_info,
+            viewer_table,
+            stat_table,
+            quality_table,
+            healthcare_table,
+            unique_table,
+            clean_before,
+            clean_after,
+            clean_comparison,
+            clean_history
+        ]
+    )
+
+
+# ============================================================
+# LAUNCH
+# ============================================================
+
+print(
+    "AI & ML Analytics Studio is ready."
+)
+
+app.launch(
+    share=True,
+    debug=False
 )
